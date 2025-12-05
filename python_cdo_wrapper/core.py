@@ -234,8 +234,7 @@ def cdo(
     return_xr: Literal[True] = True,
     debug: bool = False,
     check_files: bool = True,
-) -> str | tuple[xr.Dataset, str]:
-    ...
+) -> str | tuple[xr.Dataset, str]: ...
 
 
 @overload
@@ -246,8 +245,7 @@ def cdo(
     return_xr: Literal[False],
     debug: bool = False,
     check_files: bool = True,
-) -> str | tuple[None, str]:
-    ...
+) -> str | tuple[None, str]: ...
 
 
 def cdo(
