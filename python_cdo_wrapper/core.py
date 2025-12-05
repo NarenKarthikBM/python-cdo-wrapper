@@ -119,6 +119,7 @@ CDO_TEXT_COMMANDS: frozenset[str] = frozenset(
         "showzrule",
         # Count operators
         "ntsteps",
+        "nvar",
         "ngrids",
         "nvars",
         "nzaxis",

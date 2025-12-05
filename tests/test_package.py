@@ -2,7 +2,6 @@
 Tests for the package-level API.
 """
 
-
 import python_cdo_wrapper
 
 

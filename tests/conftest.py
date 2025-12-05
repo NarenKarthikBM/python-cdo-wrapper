@@ -33,7 +33,7 @@ def is_cdo_installed() -> bool:
 
 
 # Skip integration tests if CDO is not installed
-def pytest_collection_modifyitems(_config, items):
+def pytest_collection_modifyitems(config, items):  # noqa: ARG001
     """Skip integration tests if CDO is not available."""
     if not is_cdo_installed():
         skip_integration = pytest.mark.skip(reason="CDO not installed")

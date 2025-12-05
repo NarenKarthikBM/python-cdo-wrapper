@@ -6,6 +6,12 @@ __pycache__/
 # C extensions
 *.so
 
+# Copilot instructions (personal/local config)
+.copilot-instructions.md
+
+# Local test logs
+local_tests/
+
 # Distribution / packaging
 .Python
 build/
@@ -148,3 +154,8 @@ tests/data/*.nc
 *.temp
 .temp/
 tmp/
+
+# Local testing scripts
+test-local.sh
+test_local.py
+local_tests/

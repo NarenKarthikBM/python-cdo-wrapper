@@ -191,7 +191,7 @@ class TestCDOFunction:
                 mock_tmp.return_value.__enter__.return_value.name = str(sample_nc_file)
 
                 # Prevent file deletion since we're using a real file
-                with patch("python_cdo_wrapper.core.os.unlink"):
+                with patch("pathlib.Path.unlink"):
                     result = cdo(f"yearmean {sample_nc_file}", check_files=False)
 
             assert isinstance(result, tuple)
@@ -252,8 +252,8 @@ class TestCDOFunction:
                 patch(
                     "python_cdo_wrapper.core.tempfile.NamedTemporaryFile"
                 ) as mock_tmp,
-                patch("python_cdo_wrapper.core.Path.exists", return_value=True),
-                patch("python_cdo_wrapper.core.Path.unlink"),
+                patch("pathlib.Path.exists", return_value=True),
+                patch("pathlib.Path.unlink"),
             ):
                 mock_tmp.return_value.__enter__.return_value.name = "/tmp/test.nc"
                 result = cdo("yearmean test.nc", return_xr=False, check_files=False)
@@ -270,7 +270,7 @@ class TestCDOFunction:
                 stderr="",
             )
 
-            with patch("python_cdo_wrapper.core.xr.open_dataset") as mock_xr:
+            with patch("xarray.open_dataset") as mock_xr:
                 mock_xr.return_value = MagicMock()
 
                 cdo(
@@ -304,18 +304,18 @@ class TestCDOFunctionIntegration:
         assert "temperature" in result
 
     @pytest.mark.integration
-    def test_cdo_ntsteps_real(self, sample_nc_file: Path):
-        """Test ntsteps with real CDO."""
-        result = cdo(f"ntsteps {sample_nc_file}")
+    def test_cdo_nvar_real(self, sample_nc_file: Path):
+        """Test nvar with real CDO (returns number of variables as text)."""
+        result = cdo(f"-nvar {sample_nc_file}")
 
         assert isinstance(result, str)
-        # Our sample has 3 time steps
-        assert "3" in result
+        # Our sample has 1 variable (temperature)
+        assert "1" in result
 
     @pytest.mark.integration
     def test_cdo_fldmean_real(self, sample_nc_file: Path):
         """Test fldmean with real CDO returns dataset."""
-        ds, log = cdo(f"fldmean {sample_nc_file}")
+        ds, _ = cdo(f"fldmean {sample_nc_file}")
 
         import xarray as xr
 
