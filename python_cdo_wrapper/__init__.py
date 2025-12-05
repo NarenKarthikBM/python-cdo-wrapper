@@ -27,10 +27,10 @@ __author__ = "Your Name"
 __email__ = "you@example.com"
 
 __all__ = [
-    "cdo",
     "CDO_TEXT_COMMANDS",
     "CDOError",
+    "__version__",
+    "cdo",
     "get_cdo_version",
     "list_operators",
-    "__version__",
 ]

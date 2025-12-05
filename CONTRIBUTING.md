@@ -142,20 +142,20 @@ Use Google-style docstrings:
 def my_function(param1: str, param2: int = 10) -> bool:
     """
     Short description of the function.
-    
+
     Longer description if needed, explaining the function's
     behavior, edge cases, etc.
-    
+
     Args:
         param1: Description of param1.
         param2: Description of param2. Defaults to 10.
-    
+
     Returns:
         Description of return value.
-    
+
     Raises:
         ValueError: When param1 is empty.
-    
+
     Example:
         >>> my_function("test", 5)
         True
