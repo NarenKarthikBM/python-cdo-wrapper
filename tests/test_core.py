@@ -55,9 +55,9 @@ class TestCDOTextCommands:
             "mul",
         ]
         for op in data_ops:
-            assert (
-                op not in CDO_TEXT_COMMANDS
-            ), f"{op} should NOT be in CDO_TEXT_COMMANDS"
+            assert op not in CDO_TEXT_COMMANDS, (
+                f"{op} should NOT be in CDO_TEXT_COMMANDS"
+            )
 
 
 class TestIsTextCommand:
