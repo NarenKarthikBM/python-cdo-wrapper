@@ -1,0 +1,10 @@
+"""Type stubs for python_cdo_wrapper package."""
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from python_cdo_wrapper.core import CDOError as CDOError
+    from python_cdo_wrapper.core import CDO_TEXT_COMMANDS as CDO_TEXT_COMMANDS
+    from python_cdo_wrapper.core import cdo as cdo
+    from python_cdo_wrapper.core import get_cdo_version as get_cdo_version
+    from python_cdo_wrapper.core import list_operators as list_operators
