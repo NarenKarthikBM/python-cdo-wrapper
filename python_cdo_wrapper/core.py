@@ -24,14 +24,14 @@ from __future__ import annotations
 
 import subprocess
 import tempfile
-from typing import TYPE_CHECKING, Literal, overload
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     import xarray as xr
 
-__all__ = ["CDO_TEXT_COMMANDS", "CDOError", "cdo"]
+__all__ = ["CDO_STRUCTURED_COMMANDS", "CDO_TEXT_COMMANDS", "CDOError", "cdo"]
 
 
 class CDOError(Exception):
@@ -154,6 +154,28 @@ CDO_TEXT_COMMANDS: frozenset[str] = frozenset(
     }
 )
 
+# Subset of CDO_TEXT_COMMANDS that support structured output parsing
+CDO_STRUCTURED_COMMANDS: frozenset[str] = frozenset(
+    {
+        "griddes",
+        "griddes2",
+        "zaxisdes",
+        "sinfo",
+        "sinfon",
+        "sinfov",
+        "info",
+        "infon",
+        "infov",
+        "vlist",
+        "showatts",
+        "showattsglob",
+        "partab",
+        "codetab",
+        "vct",
+        "vct2",
+    }
+)
+
 
 def _check_cdo_installed() -> None:
     """
@@ -232,6 +254,19 @@ def cdo(
     *,
     output_file: str | Path | None = None,
     return_xr: Literal[True] = True,
+    return_dict: Literal[True],
+    debug: bool = False,
+    check_files: bool = True,
+) -> dict[str, Any] | list[dict[str, Any]]: ...
+
+
+@overload
+def cdo(
+    cmd: str,
+    *,
+    output_file: str | Path | None = None,
+    return_xr: Literal[True] = True,
+    return_dict: Literal[False] = False,
     debug: bool = False,
     check_files: bool = True,
 ) -> str | tuple[xr.Dataset, str]: ...
@@ -243,6 +278,7 @@ def cdo(
     *,
     output_file: str | Path | None = None,
     return_xr: Literal[False],
+    return_dict: Literal[False] = False,
     debug: bool = False,
     check_files: bool = True,
 ) -> str | tuple[None, str]: ...
@@ -253,9 +289,10 @@ def cdo(
     *,
     output_file: str | Path | None = None,
     return_xr: bool = True,
+    return_dict: bool = False,
     debug: bool = False,
     check_files: bool = True,
-) -> str | tuple[xr.Dataset | None, str]:
+) -> str | tuple[xr.Dataset | None, str] | dict[str, Any] | list[dict[str, Any]]:
     """
     Execute a CDO command and return results as Python objects.
 
@@ -274,6 +311,10 @@ def cdo(
         return_xr: If True (default), return an xarray.Dataset for data commands.
             If False, only return the log output without loading data.
 
+        return_dict: If True, parse text command output into a structured dictionary
+            (only works for supported text commands like griddes, sinfo, etc.).
+            If False (default), return raw text output for text commands.
+
         debug: If True, print detailed command execution information including
             the full command, return code, stdout, and stderr.
 
@@ -282,7 +323,8 @@ def cdo(
 
     Returns:
         For text commands (sinfo, griddes, etc.):
-            str: The text output from CDO.
+            str: The text output from CDO (if return_dict=False).
+            dict | list[dict]: Parsed structured data (if return_dict=True).
 
         For data commands (yearmean, selname, etc.):
             tuple[xr.Dataset, str]: A tuple of (dataset, log_output) if return_xr=True.
@@ -302,6 +344,11 @@ def cdo(
 
         >>> # Get grid description
         >>> grid = cdo("griddes data.nc")
+
+        >>> # Get structured grid information
+        >>> grid_dict = cdo("griddes data.nc", return_dict=True)
+        >>> print(grid_dict["gridtype"])
+        >>> print(grid_dict["xsize"], grid_dict["ysize"])
 
         Data processing commands:
 
@@ -395,8 +442,18 @@ def cdo(
 
     # Return appropriate result based on command type
     if is_text_cmd:
-        # Text commands: return stdout directly
-        return result.stdout.strip()
+        # Text commands: return stdout directly or as structured dict
+        output = result.stdout.strip()
+        if return_dict:
+            # Parse output into structured dictionary
+            from python_cdo_wrapper.parsers import parse_cdo_output
+
+            try:
+                return parse_cdo_output(cmd, output)
+            except ValueError:
+                # If parsing fails, return raw text
+                return output
+        return output
 
     elif return_xr:
         # Data commands with xarray: load and return dataset

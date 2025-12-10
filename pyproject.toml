@@ -4,16 +4,16 @@ build-backend = "hatchling.build"
 
 [project]
 name = "python-cdo-wrapper"
-version = "0.1.0"
+version = "0.2.0"
 description = "A simple, universal Python wrapper for CDO (Climate Data Operators) with seamless xarray integration"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.9"
 authors = [
-    { name = "Your Name", email = "you@example.com" },
+    { name = "B M Naren Karthik", email = "narenkarthikbm@gmail.com" },
 ]
 maintainers = [
-    { name = "Your Name", email = "you@example.com" },
+    { name = "B M Naren Karthik", email = "narenkarthikbm@gmail.com" },
 ]
 keywords = [
     "cdo",

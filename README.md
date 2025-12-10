@@ -12,6 +12,7 @@ A simple, universal Python wrapper for [CDO (Climate Data Operators)](https://co
 - 🚀 **Simple API**: Single function to handle all CDO operations
 - 📊 **Auto-detection**: Automatically detects text vs. data commands
 - 🔄 **xarray Integration**: Returns xarray.Dataset for data operations
+- 📖 **Structured Output**: Parse text commands into Python dictionaries
 - 🧹 **Clean Output**: Automatic temp file management
 - 🐛 **Debug Mode**: Easy troubleshooting with detailed output
 - 📝 **Type Hints**: Full typing support for IDE autocompletion
@@ -78,6 +79,49 @@ print(times)
 vars = cdo("showname data.nc")
 print(vars)
 ```
+
+### Structured Output (New in v0.2.0!)
+
+Get structured dictionaries instead of raw text for easier programmatic access:
+
+```python
+from python_cdo_wrapper import cdo
+
+# Get grid information as a dictionary
+grid_dict = cdo("griddes data.nc", return_dict=True)
+print(grid_dict["gridtype"])  # 'lonlat'
+print(f"{grid_dict['xsize']} x {grid_dict['ysize']}")  # '360 x 180'
+print(f"Resolution: {grid_dict['xinc']}°")  # 'Resolution: 1.0°'
+
+# Get dataset information as structured data
+info_dict = cdo("sinfo data.nc", return_dict=True)
+print(info_dict["metadata"]["format"])  # 'NetCDF'
+for var in info_dict["variables"]:
+    print(f"Variable: {var['name']}")
+
+# Get variable attributes
+attrs = cdo("showatts data.nc", return_dict=True)
+for var_name, var_attrs in attrs.items():
+    print(f"{var_name}: {var_attrs.get('units', 'no units')}")
+
+# Get global attributes
+global_attrs = cdo("showattsglob data.nc", return_dict=True)
+print(global_attrs.get("title", "No title"))
+
+# Get vertical axis information
+zaxis = cdo("zaxisdes data.nc", return_dict=True)
+print(f"Levels: {zaxis['levels']}")
+```
+
+**Supported structured commands:**
+- `griddes`, `griddes2` - Grid information
+- `zaxisdes` - Vertical axis information
+- `sinfo`, `info`, `infon`, `infov`, `sinfon`, `sinfov` - Dataset information
+- `vlist` - Variable list
+- `showatts` - Variable attributes
+- `showattsglob` - Global attributes
+- `partab`, `codetab` - Parameter tables
+- `vct`, `vct2` - Vertical coordinate tables
 
 ### Data Processing
 
@@ -186,7 +230,7 @@ All other operators that produce NetCDF output:
 
 ## API Reference
 
-### `cdo(cmd, *, output_file=None, return_xr=True, debug=False, check_files=True)`
+### `cdo(cmd, *, output_file=None, return_xr=True, return_dict=False, debug=False, check_files=True)`
 
 Execute a CDO command and return results as Python objects.
 
@@ -196,11 +240,12 @@ Execute a CDO command and return results as Python objects.
 | `cmd` | `str` | required | CDO command (without leading "cdo") |
 | `output_file` | `str \| Path \| None` | `None` | Output file path (temp file if None) |
 | `return_xr` | `bool` | `True` | Return xarray.Dataset for data commands |
+| `return_dict` | `bool` | `False` | Parse text output into structured dict |
 | `debug` | `bool` | `False` | Print detailed execution info |
 | `check_files` | `bool` | `True` | Validate input files exist |
 
 **Returns:**
-- Text commands: `str`
+- Text commands: `str` (default) or `dict | list[dict]` (with `return_dict=True`)
 - Data commands: `tuple[xr.Dataset, str]` or `tuple[None, str]`
 
 **Raises:**
@@ -314,7 +359,7 @@ If you use this package in your research, please consider citing:
 ```bibtex
 @software{python_cdo_wrapper,
   title = {Python CDO Wrapper},
-  author = {Your Name},
+  author = {B M Naren Karthik},
   year = {2024},
   url = {https://github.com/NarenKarthikBM/python-cdo-wrapper},
 }
