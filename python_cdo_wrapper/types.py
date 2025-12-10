@@ -94,6 +94,12 @@ class VariableInfo(TypedDict, total=False):
         datatype: Data type (e.g., 'float', 'double').
         raw: Raw text line from output.
         parts: Parsed parts of the output line.
+        date: Date from sinfo output (e.g., '2020-01-01').
+        time: Time from sinfo output (e.g., '00:00:00').
+        level: Level value from sinfo output.
+        gridsize: Grid size from sinfo output.
+        num: Number identifier from sinfo output.
+        dtype: Data type from sinfo output (e.g., 'F64', 'F32').
     """
 
     name: str
@@ -105,6 +111,12 @@ class VariableInfo(TypedDict, total=False):
     datatype: str
     raw: str
     parts: list[str]
+    date: str
+    time: str
+    level: int | str
+    gridsize: int | str
+    num: int | str
+    dtype: str
 
 
 class DatasetInfo(TypedDict, total=False):

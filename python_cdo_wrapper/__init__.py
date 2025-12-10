@@ -46,7 +46,7 @@ from python_cdo_wrapper.types import (
     ZAxisInfo,
 )
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 __author__ = "B M Naren Karthik"
 __email__ = "narenkarthikbm@gmail.com"
 
