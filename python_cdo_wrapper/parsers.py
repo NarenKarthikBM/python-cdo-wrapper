@@ -210,7 +210,7 @@ class SinfoParser(CDOParser):
         if last_colon_idx == -1:
             return None
 
-        var_name = line[last_colon_idx + 1:].strip()
+        var_name = line[last_colon_idx + 1 :].strip()
         if not var_name or var_name in ("Parameter name", ""):
             return None
 
@@ -220,7 +220,7 @@ class SinfoParser(CDOParser):
             return None
 
         # Extract the middle section between first and last colons
-        middle_section = line[first_colon_idx + 1:last_colon_idx].strip()
+        middle_section = line[first_colon_idx + 1 : last_colon_idx].strip()
         fields = middle_section.split()
 
         result: dict[str, Any] = {"name": var_name}
