@@ -112,8 +112,24 @@ File format: NetCDF
         assert result["metadata"]["format"] == "NetCDF"
         assert "variables" in result
         assert len(result["variables"]) == 2
+
+        # Test first variable (tas)
         assert result["variables"][0]["name"] == "tas"
+        assert result["variables"][0]["date"] == "2020-01-01"
+        assert result["variables"][0]["time"] == "00:00:00"
+        assert result["variables"][0]["level"] == 0
+        assert result["variables"][0]["gridsize"] == 518400
+        assert result["variables"][0]["num"] == 1
+        assert result["variables"][0]["dtype"] == "F64"
+
+        # Test second variable (pr)
         assert result["variables"][1]["name"] == "pr"
+        assert result["variables"][1]["date"] == "2020-01-01"
+        assert result["variables"][1]["time"] == "00:00:00"
+        assert result["variables"][1]["level"] == 0
+        assert result["variables"][1]["gridsize"] == 518400
+        assert result["variables"][1]["num"] == 2
+        assert result["variables"][1]["dtype"] == "F64"
 
     def test_parse_empty_variables(self):
         """Test parsing info with no variables."""
@@ -126,6 +142,39 @@ File format: NetCDF
 
         assert "variables" in result
         assert len(result["variables"]) == 0
+
+    def test_parse_temporal_data(self):
+        """Test parsing temporal information from multiple timesteps."""
+        output = """
+File format: NetCDF4
+   -1 : Date     Time   Level Gridsize    Num    Dtype : Parameter name
+    1 : 1901-01-01 00:00:00       0   135360      1  F32    : rf
+    2 : 1901-01-02 00:00:00       0   135360      1  F32    : rf
+    3 : 1901-01-03 00:00:00       0   135360      1  F32    : rf
+    4 : 2019-12-31 00:00:00       0   135360      1  F32    : rf
+        """
+        parser = SinfoParser()
+        result = parser.parse(output)
+
+        assert "metadata" in result
+        assert result["metadata"]["format"] == "NetCDF4"
+        assert "variables" in result
+        assert len(result["variables"]) == 4
+
+        # Test first timestep
+        assert result["variables"][0]["name"] == "rf"
+        assert result["variables"][0]["date"] == "1901-01-01"
+        assert result["variables"][0]["time"] == "00:00:00"
+
+        # Test last timestep
+        assert result["variables"][3]["name"] == "rf"
+        assert result["variables"][3]["date"] == "2019-12-31"
+        assert result["variables"][3]["time"] == "00:00:00"
+
+        # Verify all have consistent gridsize and dtype
+        for var in result["variables"]:
+            assert var["gridsize"] == 135360
+            assert var["dtype"] == "F32"
 
 
 class TestVlistParser:

@@ -203,16 +203,39 @@ class SinfoParser(CDOParser):
         """Parse a single variable line from sinfo output.
 
         Example input: "1 : 2020-01-01 00:00:00  0  518400  1  F64 : tas"
+        Format: "Index : Date Time Level Gridsize Num Dtype : Parameter name"
         """
-        parts = line.split(":")
-        if len(parts) < 2:
+        # Find the last colon which separates the parameter name
+        last_colon_idx = line.rfind(":")
+        if last_colon_idx == -1:
             return None
 
-        var_name = parts[-1].strip()
+        var_name = line[last_colon_idx + 1:].strip()
         if not var_name or var_name in ("Parameter name", ""):
             return None
 
-        return {"name": var_name, "raw": line}
+        # Find the first colon which separates the index
+        first_colon_idx = line.find(":")
+        if first_colon_idx == -1 or first_colon_idx == last_colon_idx:
+            return None
+
+        # Extract the middle section between first and last colons
+        middle_section = line[first_colon_idx + 1:last_colon_idx].strip()
+        fields = middle_section.split()
+
+        result: dict[str, Any] = {"name": var_name}
+
+        # Expected format: Date Time Level Gridsize Num Dtype
+        # Example: 2020-01-01 00:00:00 0 518400 1 F64
+        if len(fields) >= 6:
+            result["date"] = fields[0]
+            result["time"] = fields[1]
+            result["level"] = int(fields[2]) if fields[2].lstrip("-").isdigit() else fields[2]
+            result["gridsize"] = int(fields[3]) if fields[3].isdigit() else fields[3]
+            result["num"] = int(fields[4]) if fields[4].isdigit() else fields[4]
+            result["dtype"] = fields[5]
+
+        return result
 
 
 class VlistParser(CDOParser):

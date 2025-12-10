@@ -8,7 +8,7 @@ from python_cdo_wrapper import CDO_STRUCTURED_COMMANDS, cdo
 class TestStructuredOutputIntegration:
     """Integration tests for structured output with real CDO commands."""
 
-    @pytest.mark.skipif(not hasattr(pytest, "skip"), reason="Requires CDO installation")
+    @pytest.mark.integration
     def test_griddes_structured_output(self, sample_nc_file):
         """Test griddes with return_dict=True."""
         # Skip if sample file doesn't exist
@@ -20,7 +20,7 @@ class TestStructuredOutputIntegration:
         assert isinstance(result, dict)
         assert "gridtype" in result or "gridsize" in result
 
-    @pytest.mark.skipif(not hasattr(pytest, "skip"), reason="Requires CDO installation")
+    @pytest.mark.integration
     def test_sinfo_structured_output(self, sample_nc_file):
         """Test sinfo with return_dict=True."""
         if not sample_nc_file.exists():
