@@ -176,6 +176,23 @@ File format: NetCDF4
             assert var["gridsize"] == 135360
             assert var["dtype"] == "F32"
 
+    def test_parse_with_string_level(self):
+        """Test parsing when level is a string (e.g., 'surface')."""
+        output = """
+File format: NetCDF
+   -1 : Date     Time   Level Gridsize    Num    Dtype : Parameter name
+    1 : 2020-01-01 00:00:00 surface 10000      1  F64    : tas
+        """
+        parser = SinfoParser()
+        result = parser.parse(output)
+
+        assert len(result["variables"]) == 1
+        var = result["variables"][0]
+        assert var["name"] == "tas"
+        assert var["level"] == "surface"
+        assert var["gridsize"] == 10000
+        assert var["dtype"] == "F64"
+
 
 class TestVlistParser:
     """Tests for VlistParser."""

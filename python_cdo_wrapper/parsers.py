@@ -230,9 +230,21 @@ class SinfoParser(CDOParser):
         if len(fields) >= 6:
             result["date"] = fields[0]
             result["time"] = fields[1]
-            result["level"] = int(fields[2]) if fields[2].lstrip("-").isdigit() else fields[2]
-            result["gridsize"] = int(fields[3]) if fields[3].isdigit() else fields[3]
-            result["num"] = int(fields[4]) if fields[4].isdigit() else fields[4]
+            # Parse level (can be integer or string like "surface")
+            try:
+                result["level"] = int(fields[2])
+            except ValueError:
+                result["level"] = fields[2]
+            # Parse gridsize (typically an integer)
+            try:
+                result["gridsize"] = int(fields[3])
+            except ValueError:
+                result["gridsize"] = fields[3]
+            # Parse num (typically an integer)
+            try:
+                result["num"] = int(fields[4])
+            except ValueError:
+                result["num"] = fields[4]
             result["dtype"] = fields[5]
 
         return result
