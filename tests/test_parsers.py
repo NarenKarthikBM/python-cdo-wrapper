@@ -193,6 +193,213 @@ File format: NetCDF
         assert var["gridsize"] == 10000
         assert var["dtype"] == "F64"
 
+    def test_parse_complete_sinfo_output(self):
+        """Test parsing complete sinfo output with all sections."""
+        output = """File format : NetCDF4
+    -1 : Institut Source   T Steptype Levels Num    Points Num Dtype : Parameter ID
+     1 : unknown  unknown  v instant       1   1     17415   1  F32  : 260
+   Grid coordinates :
+     1 : lonlat                   : points=17415 (135x129)
+                              lon : 66.5 to 100 by 0.25 [degrees_east]
+                              lat : 6.5 to 38.5 by 0.25 [degrees_north]
+   Vertical coordinates :
+     1 : surface                  : levels=1
+   Time coordinate :
+                             time : 43464 steps
+     RefTime =  1901-01-01 00:00:00  Units = hours  Calendar = standard
+  YYYY-MM-DD hh:mm:ss  YYYY-MM-DD hh:mm:ss  YYYY-MM-DD hh:mm:ss  YYYY-MM-DD hh:mm:ss
+  1901-01-01 00:00:00  1901-01-02 00:00:00  1901-01-03 00:00:00  1901-01-04 00:00:00
+  1901-01-05 00:00:00  1901-01-06 00:00:00  1901-01-07 00:00:00  1901-01-08 00:00:00
+  ................................................................................
+  2019-12-28 00:00:00  2019-12-29 00:00:00  2019-12-30 00:00:00  2019-12-31 00:00:00
+        """
+        parser = SinfoParser()
+        result = parser.parse(output)
+
+        # Test metadata
+        assert result["metadata"]["format"] == "NetCDF4"
+
+        # Test variables
+        assert len(result["variables"]) == 1
+        var = result["variables"][0]
+        assert var["name"] == "260"
+        assert var["institut"] == "unknown"
+        assert var["source"] == "unknown"
+        assert var["table"] == "v"
+        assert var["steptype"] == "instant"
+        assert var["levels"] == 1
+        assert var["points"] == 17415
+        assert var["dtype"] == "F32"
+
+        # Test grid information
+        assert result["grid"]["id"] == 1
+        assert result["grid"]["type"] == "lonlat"
+        assert result["grid"]["points"] == 17415
+        assert result["grid"]["xsize"] == 135
+        assert result["grid"]["ysize"] == 129
+        assert result["grid"]["lon_start"] == 66.5
+        assert result["grid"]["lon_end"] == 100.0
+        assert result["grid"]["lon_resolution"] == 0.25
+        assert result["grid"]["lon_units"] == "degrees_east"
+        assert result["grid"]["lat_start"] == 6.5
+        assert result["grid"]["lat_end"] == 38.5
+        assert result["grid"]["lat_resolution"] == 0.25
+        assert result["grid"]["lat_units"] == "degrees_north"
+
+        # Test vertical coordinates
+        assert result["vertical"]["id"] == 1
+        assert result["vertical"]["type"] == "surface"
+        assert result["vertical"]["levels"] == 1
+
+        # Test time coordinates
+        assert result["time"]["steps"] == 43464
+        assert result["time"]["reftime"] == "1901-01-01 00:00:00"
+        assert result["time"]["units"] == "hours"
+        assert result["time"]["calendar"] == "standard"
+        assert result["time"]["first_timestep"] == "1901-01-01 00:00:00"
+        assert result["time"]["last_timestep"] == "2019-12-31 00:00:00"
+        assert result["time"]["has_omitted_timesteps"] is True
+        assert "time_resolution" in result["time"]
+        assert result["time"]["time_resolution"]["regular"] is True
+        assert result["time"]["time_resolution"]["interval"] == "1 day"
+
+    def test_parse_grid_coordinates_only(self):
+        """Test parsing just grid coordinates section."""
+        output = """
+   Grid coordinates :
+     1 : lonlat                   : points=64800 (360x180)
+                              lon : -179.5 to 179.5 by 1.0 [degrees_east]
+                              lat : -89.5 to 89.5 by 1.0 [degrees_north]
+        """
+        parser = SinfoParser()
+        result = parser.parse(output)
+
+        assert result["grid"]["id"] == 1
+        assert result["grid"]["type"] == "lonlat"
+        assert result["grid"]["points"] == 64800
+        assert result["grid"]["xsize"] == 360
+        assert result["grid"]["ysize"] == 180
+        assert result["grid"]["lon_resolution"] == 1.0
+        assert result["grid"]["lat_resolution"] == 1.0
+
+    def test_parse_time_coordinates_with_resolution(self):
+        """Test parsing time coordinates and calculating resolution."""
+        output = """
+   Time coordinate :
+                             time : 365 steps
+     RefTime =  2020-01-01 00:00:00  Units = days  Calendar = gregorian
+  YYYY-MM-DD hh:mm:ss  YYYY-MM-DD hh:mm:ss  YYYY-MM-DD hh:mm:ss  YYYY-MM-DD hh:mm:ss
+  2020-01-01 00:00:00  2020-01-02 00:00:00  2020-01-03 00:00:00  2020-01-04 00:00:00
+  2020-01-05 00:00:00  2020-01-06 00:00:00  2020-01-07 00:00:00  2020-01-08 00:00:00
+        """
+        parser = SinfoParser()
+        result = parser.parse(output)
+
+        assert result["time"]["steps"] == 365
+        assert result["time"]["reftime"] == "2020-01-01 00:00:00"
+        assert result["time"]["units"] == "days"
+        assert result["time"]["calendar"] == "gregorian"
+        assert result["time"]["first_timestep"] == "2020-01-01 00:00:00"
+        assert "time_resolution" in result["time"]
+        assert result["time"]["time_resolution"]["regular"] is True
+        assert result["time"]["time_resolution"]["interval"] == "1 day"
+
+    def test_parse_time_coordinates_hourly(self):
+        """Test parsing hourly time resolution."""
+        output = """
+   Time coordinate :
+                             time : 24 steps
+     RefTime =  2020-01-01 00:00:00  Units = hours  Calendar = standard
+  YYYY-MM-DD hh:mm:ss  YYYY-MM-DD hh:mm:ss  YYYY-MM-DD hh:mm:ss  YYYY-MM-DD hh:mm:ss
+  2020-01-01 00:00:00  2020-01-01 01:00:00  2020-01-01 02:00:00  2020-01-01 03:00:00
+  2020-01-01 04:00:00  2020-01-01 05:00:00  2020-01-01 06:00:00  2020-01-01 07:00:00
+        """
+        parser = SinfoParser()
+        result = parser.parse(output)
+
+        assert result["time"]["steps"] == 24
+        assert result["time"]["time_resolution"]["regular"] is True
+        assert result["time"]["time_resolution"]["interval"] == "1 hour"
+        assert result["time"]["time_resolution"]["interval_seconds"] == 3600
+
+    def test_parse_time_coordinates_6hourly(self):
+        """Test parsing 6-hourly time resolution."""
+        output = """
+   Time coordinate :
+                             time : 4 steps
+     RefTime =  2020-01-01 00:00:00  Units = hours  Calendar = standard
+  YYYY-MM-DD hh:mm:ss  YYYY-MM-DD hh:mm:ss  YYYY-MM-DD hh:mm:ss  YYYY-MM-DD hh:mm:ss
+  2020-01-01 00:00:00  2020-01-01 06:00:00  2020-01-01 12:00:00  2020-01-01 18:00:00
+        """
+        parser = SinfoParser()
+        result = parser.parse(output)
+
+        assert result["time"]["time_resolution"]["regular"] is True
+        assert result["time"]["time_resolution"]["interval"] == "6 hours"
+        assert result["time"]["time_resolution"]["interval_seconds"] == 21600
+
+    def test_parse_vertical_coordinates_surface(self):
+        """Test parsing surface vertical coordinates."""
+        output = """
+   Vertical coordinates :
+     1 : surface                  : levels=1
+        """
+        parser = SinfoParser()
+        result = parser.parse(output)
+
+        assert result["vertical"]["id"] == 1
+        assert result["vertical"]["type"] == "surface"
+        assert result["vertical"]["levels"] == 1
+
+    def test_parse_vertical_coordinates_pressure(self):
+        """Test parsing pressure level vertical coordinates."""
+        output = """
+   Vertical coordinates :
+     1 : pressure                 : levels=4
+        """
+        parser = SinfoParser()
+        result = parser.parse(output)
+
+        assert result["vertical"]["id"] == 1
+        assert result["vertical"]["type"] == "pressure"
+        assert result["vertical"]["levels"] == 4
+
+    def test_parse_new_format_variable_line(self):
+        """Test parsing new format variable line with institut/source fields."""
+        output = """
+File format : NetCDF4
+    -1 : Institut Source   T Steptype Levels Num    Points Num Dtype : Parameter ID
+     1 : ECMWF    ERA5    v instant       1   1     259920   1  F64  : tas
+        """
+        parser = SinfoParser()
+        result = parser.parse(output)
+
+        assert len(result["variables"]) == 1
+        var = result["variables"][0]
+        assert var["name"] == "tas"
+        assert var["institut"] == "ECMWF"
+        assert var["source"] == "ERA5"
+        assert var["table"] == "v"
+        assert var["steptype"] == "instant"
+        assert var["levels"] == 1
+        assert var["points"] == 259920
+        assert var["dtype"] == "F64"
+
+    def test_empty_sections(self):
+        """Test that empty sections are handled gracefully."""
+        output = """
+File format : NetCDF
+   -1 : Institut Source   T Steptype Levels Num    Points Num Dtype : Parameter ID
+        """
+        parser = SinfoParser()
+        result = parser.parse(output)
+
+        assert result["metadata"]["format"] == "NetCDF"
+        assert len(result["variables"]) == 0
+        assert result["grid"] == {}
+        assert result["vertical"] == {}
+        assert result["time"] == {}
+
 
 class TestVlistParser:
     """Tests for VlistParser."""

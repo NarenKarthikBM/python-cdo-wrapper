@@ -10,6 +10,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Nothing yet
 
+## [0.2.1] - 2025-12-10
+
+### Enhanced
+- **SinfoParser Major Enhancement**: Complete parsing of all CDO sinfo output sections
+  - Added comprehensive grid coordinates parsing with spatial resolution extraction
+  - Added vertical coordinates parsing (surface, pressure, hybrid levels)
+  - Added time coordinates parsing with temporal resolution calculation
+  - Added metadata extraction (Institut, Source, Table, Steptype fields)
+  - Automatic time resolution detection (hourly, daily, etc.)
+  - Grid resolution extraction (lon/lat spacing)
+  - Support for both new format (Institut/Source) and old format (Date/Time) variable lines
+
+### Added
+- Grid coordinate parsing:
+  - Grid type, dimensions (xsize, ysize), and total points
+  - Longitude/latitude start, end, resolution, and units
+- Vertical coordinate parsing:
+  - Vertical axis type and number of levels
+- Time coordinate parsing:
+  - Total timesteps, reference time, units, and calendar
+  - Complete list of all timestep values
+  - First and last timestep identification
+  - Automatic time resolution calculation (regular/irregular intervals)
+  - Human-readable interval descriptions ("1 day", "6 hours", etc.)
+- Helper methods: `_parse_grid_line()`, `_parse_vertical_line()`, `_parse_time_line()`, `_finalize_time_parsing()`, `_calculate_time_resolution()`
+- Comprehensive test coverage for all new parsing capabilities
+
+### Changed
+- SinfoParser now returns structured dictionary with sections: `metadata`, `variables`, `grid`, `vertical`, `time`
+- Variable parsing supports both format variations in CDO output
+- Enhanced numeric field parsing with proper type conversion and error handling
+
+### Fixed
+- Removed unused parameters in static parser methods (linting fixes)
+- Removed commented-out code
+
 ## [0.2.0] - 2025-12-10
 
 ### Added
@@ -72,6 +108,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Input file validation
 - Support for custom output file paths
 
-[Unreleased]: https://github.com/NarenKarthikBM/python-cdo-wrapper/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/NarenKarthikBM/python-cdo-wrapper/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/NarenKarthikBM/python-cdo-wrapper/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/NarenKarthikBM/python-cdo-wrapper/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/NarenKarthikBM/python-cdo-wrapper/releases/tag/v0.1.0
