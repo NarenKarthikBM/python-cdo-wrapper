@@ -173,3 +173,157 @@ def mock_cdo_result():
         return MockResult()
 
     return _create_result
+
+
+# v1.0.0+ fixtures
+
+
+@pytest.fixture
+def cdo_instance():
+    """
+    Create a CDO instance for testing (v1.0.0+ API).
+
+    Returns:
+        CDO instance if CDO is available, otherwise skips the test.
+    """
+    if not is_cdo_installed():
+        pytest.skip("CDO not installed")
+
+    from python_cdo_wrapper import CDO
+
+    return CDO()
+
+
+@pytest.fixture
+def multi_var_nc_file(tmp_path: Path) -> Path:
+    """
+    Create a NetCDF file with multiple variables for testing.
+
+    Creates a NetCDF file with:
+    - 3 variables (tas, pr, psl)
+    - 12 monthly time steps
+    - 4x4 lat/lon grid
+
+    Returns:
+        Path to the temporary NetCDF file.
+    """
+    import pandas as pd
+
+    # Create sample data with proper dates
+    times = pd.date_range("2020-01-01", periods=12, freq="MS")
+    lats = np.linspace(-90, 90, 4)
+    lons = np.linspace(-180, 180, 4)
+
+    # Random data for multiple variables
+    np.random.seed(42)
+    tas = np.random.rand(12, 4, 4) * 30 + 270  # Temperature (K)
+    pr = np.random.rand(12, 4, 4) * 10  # Precipitation (mm/day)
+    psl = np.random.rand(12, 4, 4) * 5000 + 98000  # Sea level pressure (Pa)
+
+    ds = xr.Dataset(
+        {
+            "tas": (
+                ["time", "lat", "lon"],
+                tas,
+                {
+                    "units": "K",
+                    "long_name": "Near-Surface Air Temperature",
+                    "standard_name": "air_temperature",
+                },
+            ),
+            "pr": (
+                ["time", "lat", "lon"],
+                pr,
+                {
+                    "units": "mm day-1",
+                    "long_name": "Precipitation",
+                    "standard_name": "precipitation_flux",
+                },
+            ),
+            "psl": (
+                ["time", "lat", "lon"],
+                psl,
+                {
+                    "units": "Pa",
+                    "long_name": "Sea Level Pressure",
+                    "standard_name": "air_pressure_at_mean_sea_level",
+                },
+            ),
+        },
+        coords={
+            "time": times,
+            "lat": (
+                "lat",
+                lats,
+                {"units": "degrees_north", "standard_name": "latitude"},
+            ),
+            "lon": (
+                "lon",
+                lons,
+                {"units": "degrees_east", "standard_name": "longitude"},
+            ),
+        },
+        attrs={
+            "title": "Multi-variable test dataset",
+            "institution": "Test Institute",
+            "source": "pytest fixture",
+            "Conventions": "CF-1.8",
+        },
+    )
+
+    filepath = tmp_path / "test_multi_var.nc"
+    ds.to_netcdf(filepath)
+
+    return filepath
+
+
+@pytest.fixture
+def sample_3d_nc_file(tmp_path: Path) -> Path:
+    """
+    Create a 3D NetCDF file with vertical levels for testing.
+
+    Creates a NetCDF file with:
+    - 1 variable with vertical levels
+    - 3 time steps
+    - 3 vertical levels
+    - 4x4 lat/lon grid
+
+    Returns:
+        Path to the temporary NetCDF file.
+    """
+    times = np.arange(3)
+    levels = np.array([1000.0, 850.0, 500.0])  # Pressure levels in hPa
+    lats = np.linspace(-90, 90, 4)
+    lons = np.linspace(-180, 180, 4)
+
+    # Random temperature data
+    np.random.seed(42)
+    temp = np.random.rand(3, 3, 4, 4) * 30 + 250  # Temperature varies with height
+
+    ds = xr.Dataset(
+        {
+            "ta": (
+                ["time", "level", "lat", "lon"],
+                temp,
+                {
+                    "units": "K",
+                    "long_name": "Air Temperature",
+                    "standard_name": "air_temperature",
+                },
+            ),
+        },
+        coords={
+            "time": times,
+            "level": ("level", levels, {"units": "hPa", "positive": "down"}),
+            "lat": ("lat", lats, {"units": "degrees_north"}),
+            "lon": ("lon", lons, {"units": "degrees_east"}),
+        },
+        attrs={
+            "title": "3D test dataset with vertical levels",
+        },
+    )
+
+    filepath = tmp_path / "test_3d.nc"
+    ds.to_netcdf(filepath)
+
+    return filepath

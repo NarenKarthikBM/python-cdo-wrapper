@@ -31,7 +31,13 @@ if TYPE_CHECKING:
 
     import xarray as xr
 
-__all__ = ["CDO_STRUCTURED_COMMANDS", "CDO_TEXT_COMMANDS", "CDOError", "cdo"]
+__all__ = [
+    "CDO_STRUCTURED_COMMANDS",
+    "CDO_TEXT_COMMANDS",
+    "CDOError",
+    "cdo",
+    "execute_cdo",
+]
 
 
 class CDOError(Exception):
@@ -118,7 +124,7 @@ CDO_TEXT_COMMANDS: frozenset[str] = frozenset(
         "showzgrid",
         "showzrule",
         # Count operators
-        "ntsteps",
+        "ntime",
         "nvar",
         "ngrids",
         "nvars",
@@ -131,7 +137,6 @@ CDO_TEXT_COMMANDS: frozenset[str] = frozenset(
         "nyear",
         "nmon",
         "ndate",
-        "ntime",
         # Other info operators
         "partab",
         "codetab",
@@ -168,7 +173,6 @@ CDO_STRUCTURED_COMMANDS: frozenset[str] = frozenset(
         "infov",
         "vlist",
         "showatts",
-        "showattsglob",
         "partab",
         "codetab",
         "vct",
@@ -282,6 +286,18 @@ def cdo(
     debug: bool = False,
     check_files: bool = True,
 ) -> str | tuple[None, str]: ...
+
+
+@overload
+def cdo(
+    cmd: str,
+    *,
+    output_file: str | Path | None = None,
+    return_xr: bool = True,
+    return_dict: bool = False,
+    debug: bool = False,
+    check_files: bool = True,
+) -> str | tuple[xr.Dataset | None, str] | dict[str, Any] | list[dict[str, Any]]: ...
 
 
 def cdo(
@@ -446,10 +462,13 @@ def cdo(
         output = result.stdout.strip()
         if return_dict:
             # Parse output into structured dictionary
-            from python_cdo_wrapper.parsers import parse_cdo_output
+            from python_cdo_wrapper.parsers_legacy import parse_cdo_output
 
             try:
-                return parse_cdo_output(cmd, output)
+                parsed: dict[str, object] | list[dict[str, object]] = parse_cdo_output(
+                    cmd, output
+                )
+                return parsed
             except ValueError:
                 # If parsing fails, return raw text
                 return output
@@ -480,6 +499,43 @@ def cdo(
                 temp_path.unlink()
 
         return None, result.stderr.strip() or result.stdout.strip()
+
+
+def execute_cdo(cmd: str, cdo_path: str = "cdo", debug: bool = False) -> str:
+    """
+    Execute a raw CDO command and return stdout.
+
+    Args:
+        cmd: Command string (without 'cdo ' prefix if cdo_path is used)
+        cdo_path: Path to CDO executable
+        debug: Whether to print debug info
+
+    Returns:
+        Standard output string
+    """
+    import os
+
+    full_cmd = f"{cdo_path} {cmd}"
+    if debug:
+        print(f"[CDO] Executing: {full_cmd}")
+
+    result = subprocess.run(
+        full_cmd,
+        shell=True,
+        capture_output=True,
+        text=True,
+        env=os.environ,
+    )
+
+    if result.returncode != 0:
+        raise CDOError(
+            command=full_cmd,
+            returncode=result.returncode,
+            stdout=result.stdout,
+            stderr=result.stderr,
+        )
+
+    return result.stdout
 
 
 def get_cdo_version() -> str:

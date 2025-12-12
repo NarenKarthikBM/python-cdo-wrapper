@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "python-cdo-wrapper"
-version = "0.2.1"
+version = "1.0.0"
 description = "A simple, universal Python wrapper for CDO (Climate Data Operators) with seamless xarray integration"
 readme = "README.md"
 license = "MIT"
@@ -53,6 +53,7 @@ dependencies = [
     "xarray>=2023.1.0",
     "numpy>=1.22.0",
     "netCDF4>=1.6.0",
+    "typing-extensions>=4.0.0; python_version < '3.12'",
 ]
 
 [project.optional-dependencies]
@@ -128,6 +129,7 @@ show_missing = true
 target-version = "py39"
 line-length = 88
 src = ["python_cdo_wrapper", "tests"]
+exclude = ["examples", ".github"]
 
 [tool.ruff.lint]
 select = [
