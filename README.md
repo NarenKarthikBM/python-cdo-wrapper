@@ -374,10 +374,10 @@ full_series = cdo.mergetime(
 combined = cdo.cat("file1.nc", "file2.nc", "file3.nc")
 
 # Split operations
-cdo.splityear("long_timeseries.nc", prefix="yearly_")
+cdo.split_year("long_timeseries.nc", prefix="yearly_")
 # Creates: yearly_2020.nc, yearly_2021.nc, ...
 
-cdo.splitname("multi_var.nc", prefix="var_")
+cdo.split_name("multi_var.nc", prefix="var_")
 # Creates: var_tas.nc, var_pr.nc, ...
 
 # Format conversion with query
@@ -594,12 +594,12 @@ All operators are implemented as **query methods first**, with optional convenie
 | `cdo.mergetime(*files)` | `-mergetime` | Merge time series |
 | `cdo.cat(*files)` | `-cat` | Concatenate files |
 | `cdo.copy(input, output)` | `-copy` | Copy file |
-| `cdo.splityear(file, prefix)` | `-splityear` | Split by year |
-| `cdo.splitmon(file, prefix)` | `-splitmon` | Split by month |
-| `cdo.splitday(file, prefix)` | `-splitday` | Split by day |
-| `cdo.splithour(file, prefix)` | `-splithour` | Split by hour |
-| `cdo.splitname(file, prefix)` | `-splitname` | Split by variable |
-| `cdo.splitlevel(file, prefix)` | `-splitlevel` | Split by level |
+| `cdo.split_year(file, prefix)` | `-splityear` | Split by year |
+| `cdo.split_mon(file, prefix)` | `-splitmon` | Split by month |
+| `cdo.split_day(file, prefix)` | `-splitday` | Split by day |
+| `cdo.split_hour(file, prefix)` | `-splithour` | Split by hour |
+| `cdo.split_name(file, prefix)` | `-splitname` | Split by variable |
+| `cdo.split_level(file, prefix)` | `-splitlevel` | Split by level |
 
 ## API Reference
 
@@ -632,8 +632,8 @@ cdo = CDO(cdo_path="cdo", temp_dir=None)
 - `cdo.merge(*files, output=None)` → `xr.Dataset`: Merge files
 - `cdo.mergetime(*files, output=None)` → `xr.Dataset`: Merge time series
 - `cdo.cat(*files, output=None)` → `xr.Dataset`: Concatenate files
-- `cdo.splityear(file, prefix)`: Split by year
-- `cdo.splitname(file, prefix)`: Split by variable
+- `cdo.split_year(file, prefix)`: Split by year
+- `cdo.split_name(file, prefix)`: Split by variable
 
 **Legacy Compatibility:**
 - `cdo.run(cmd, output=None, return_xr=True)` → `tuple[xr.Dataset | None, str]`: Execute string command

@@ -1074,6 +1074,9 @@ class CDOQuery:
 
         Returns:
             New query with subc operator
+
+        Example:
+            >>> q = cdo.query("temp_K.nc").subtract_constant(273.15)  # Convert Kelvin to Celsius
         """
         return self._add_operator(OperatorSpec("subc", args=(value,)))
 
@@ -1086,6 +1089,12 @@ class CDOQuery:
 
         Returns:
             New query with divc operator
+
+        Raises:
+            CDOValidationError: If value is zero
+
+        Example:
+            >>> q = cdo.query("precip.nc").divide_constant(100)  # Convert cm to m
         """
         if value == 0:
             raise CDOValidationError(
@@ -1095,6 +1104,19 @@ class CDOQuery:
                 expected="Non-zero divisor",
             )
         return self._add_operator(OperatorSpec("divc", args=(value,)))
+
+    # Shorter aliases for constant arithmetic (match README docs)
+    def sub_constant(self, value: float) -> CDOQuery:
+        """Alias for subtract_constant(). Subtract constant from all values."""
+        return self.subtract_constant(value)
+
+    def mul_constant(self, value: float) -> CDOQuery:
+        """Alias for multiply_constant(). Multiply all values by constant."""
+        return self.multiply_constant(value)
+
+    def div_constant(self, value: float) -> CDOQuery:
+        """Alias for divide_constant(). Divide all values by constant."""
+        return self.divide_constant(value)
 
     # ========== Binary Arithmetic Operators ==========
 

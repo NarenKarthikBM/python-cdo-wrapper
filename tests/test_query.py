@@ -783,6 +783,36 @@ class TestCDOQueryArithmeticOperators:
         with pytest.raises(CDOValidationError):
             cdo.query(sample_nc_file).divide_constant(0)
 
+    def test_sub_constant_alias(self, sample_nc_file):
+        """Test sub_constant alias for subtract_constant."""
+        cdo = CDO()
+        q = cdo.query(sample_nc_file).sub_constant(273.15)
+
+        cmd = q.get_command()
+        assert "-subc,273.15" in cmd
+
+    def test_mul_constant_alias(self, sample_nc_file):
+        """Test mul_constant alias for multiply_constant."""
+        cdo = CDO()
+        q = cdo.query(sample_nc_file).mul_constant(86400)
+
+        cmd = q.get_command()
+        assert "-mulc,86400" in cmd
+
+    def test_div_constant_alias(self, sample_nc_file):
+        """Test div_constant alias for divide_constant."""
+        cdo = CDO()
+        q = cdo.query(sample_nc_file).div_constant(100)
+
+        cmd = q.get_command()
+        assert "-divc,100" in cmd
+
+    def test_div_constant_alias_zero_raises(self, sample_nc_file):
+        """Test div_constant alias raises error on division by zero."""
+        cdo = CDO()
+        with pytest.raises(CDOValidationError):
+            cdo.query(sample_nc_file).div_constant(0)
+
 
 class TestCDOQueryInterpolationOperators:
     """Test interpolation and regridding operators."""
