@@ -134,7 +134,7 @@ class TestCDOExecuteTextCommand:
             mock_result.stderr = ""
 
             with patch(
-                "python_cdo_wrapper.cdo.subprocess.run", return_value=mock_result
+                "python_cdo_wrapper.utils.subprocess.run", return_value=mock_result
             ):
                 result = cdo._execute_text_command("--version")
                 assert result == "test output"
@@ -150,7 +150,7 @@ class TestCDOExecuteTextCommand:
             mock_result.stderr = "Error message"
 
             with patch(
-                "python_cdo_wrapper.cdo.subprocess.run", return_value=mock_result
+                "python_cdo_wrapper.utils.subprocess.run", return_value=mock_result
             ):
                 with pytest.raises(CDOExecutionError) as exc_info:
                     cdo._execute_text_command("invalid command")
@@ -169,7 +169,7 @@ class TestCDOExecuteTextCommand:
             mock_result.stdout = "output"
 
             with patch(
-                "python_cdo_wrapper.cdo.subprocess.run", return_value=mock_result
+                "python_cdo_wrapper.utils.subprocess.run", return_value=mock_result
             ) as mock_run:
                 cdo._execute_text_command("--version")
                 # Check that env was passed (it's merged with os.environ)
@@ -213,7 +213,7 @@ class TestCDOExecuteDataCommand:
 
             with (
                 patch(
-                    "python_cdo_wrapper.cdo.subprocess.run", return_value=mock_result
+                    "python_cdo_wrapper.utils.subprocess.run", return_value=mock_result
                 ),
                 pytest.raises(CDOExecutionError),
             ):
