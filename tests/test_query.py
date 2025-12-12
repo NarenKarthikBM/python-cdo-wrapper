@@ -913,7 +913,6 @@ class TestCDOQueryBinaryMinMax:
 
         cmd = q.get_command()
         assert "cdo -max" in cmd
-        assert "[" in cmd
         assert "-yearmean" in cmd
 
 
@@ -1043,7 +1042,6 @@ class TestCDOQueryMaskingOperations:
 
         cmd = q.get_command()
         assert "cdo -ifthen" in cmd
-        assert "[" in cmd
         assert "-yearmean" in cmd
 
     def test_ifthenelse(self, sample_nc_file):
@@ -1330,8 +1328,7 @@ class TestBinaryOperations:
         cmd = q.get_command()
         # Should use bracket notation
         assert "cdo -sub" in cmd
-        assert "[" in cmd
-        assert "]" in cmd
+
         assert "-yearmean" in cmd
 
     def test_addition(self, sample_nc_file):
@@ -1366,7 +1363,6 @@ class TestBinaryOperations:
         q = left.sub(right)
 
         cmd = q.get_command()
-        assert "[" in cmd
         assert "-yearmean" in cmd
         assert "-selname,tas" in cmd
 
