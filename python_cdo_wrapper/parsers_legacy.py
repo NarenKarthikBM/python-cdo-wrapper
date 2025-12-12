@@ -666,36 +666,6 @@ class ShowattsParser(CDOParser):
         return attributes
 
 
-class ShowattsglobParser(CDOParser):
-    """Parser for showattsglob output."""
-
-    def parse(self, output: str) -> dict[str, Any]:
-        """
-        Parse showattsglob output into a dictionary.
-
-        Args:
-            output: Raw showattsglob output text.
-
-        Returns:
-            Dictionary containing global attributes.
-        """
-        attributes: dict[str, Any] = {}
-        lines = output.strip().split("\n")
-
-        for line in lines:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-
-            if "=" in line:
-                key, value = line.split("=", 1)
-                key = key.strip()
-                value = value.strip().strip('"').strip("'")
-                attributes[key] = value
-
-        return attributes
-
-
 class PartabParser(CDOParser):
     """Parser for partab/codetab output."""
 
@@ -792,7 +762,6 @@ PARSER_REGISTRY: dict[str, type[CDOParser]] = {
     "infov": SinfoParser,
     "vlist": VlistParser,
     "showatts": ShowattsParser,
-    "showattsglob": ShowattsglobParser,
     "partab": PartabParser,
     "codetab": PartabParser,
     "vct": VctParser,

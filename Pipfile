@@ -10,6 +10,7 @@ build = "*"
 twine = "*"
 ruff = "*"
 pre-commit = "*"
+ipykernel = "*"
 
 [requires]
 python_version = "3.14"

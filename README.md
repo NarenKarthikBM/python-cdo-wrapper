@@ -5,9 +5,51 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://github.com/NarenKarthikBM/python-cdo-wrapper/workflows/Tests/badge.svg)](https://github.com/NarenKarthikBM/python-cdo-wrapper/actions)
 
-A simple, universal Python wrapper for [CDO (Climate Data Operators)](https://code.mpimet.mpg.de/projects/cdo/) with seamless xarray integration. Perfect for Jupyter notebooks and climate data analysis workflows.
+A **Django ORM-inspired**, type-safe Python wrapper for [CDO (Climate Data Operators)](https://code.mpimet.mpg.de/projects/cdo/) with seamless xarray integration. Build complex CDO pipelines with **lazy evaluation**, **chainable queries**, and **one-liner anomaly calculations**.
+
+## ✨ What's New in v1.0.0
+
+**Complete architectural overhaul** with Django ORM-style query API:
+
+```python
+from python_cdo_wrapper import CDO, F
+
+cdo = CDO()
+
+# 🔗 Chainable query building (lazy evaluation)
+ds = (
+    cdo.query("data.nc")
+    .select_var("tas")
+    .select_year(2020, 2021, 2022)
+    .year_mean()
+    .field_mean()
+    .compute()
+)
+
+# 🎯 One-liner anomaly calculation with F()
+anomaly = cdo.query("monthly_data.nc").sub(F("climatology.nc")).compute()
+
+# 🔍 Inspect before execution
+query = cdo.query("data.nc").select_var("tas").year_mean()
+print(query.get_command())  # "cdo -yearmean -selname,tas data.nc"
+```
+
+**See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) for upgrading from v0.x**
 
 ## Features
+
+### v1.0.0 - Django ORM-Style Query API (NEW!)
+
+- 🔗 **Lazy Query Chaining**: Build complex pipelines with readable, chainable methods
+- 🎯 **F() Function**: Django F-expression pattern for binary operations (anomalies in one line!)
+- 🔍 **Query Introspection**: `.get_command()`, `.explain()`, `.clone()` before execution
+- 🌲 **Query Branching**: Clone base queries for multiple analyses
+- 📋 **Query Templates**: Reusable pipeline patterns with placeholders
+- ✅ **Full Type Safety**: Complete IDE autocompletion for all operators
+- 📊 **Structured Results**: All info commands return typed dataclasses
+- 🔁 **Immutable Queries**: Each operation returns a new query instance
+
+### v0.2.x - Legacy API (Still Supported!)
 
 - 🚀 **Simple API**: Single function to handle all CDO operations
 - 📊 **Auto-detection**: Automatically detects text vs. data commands
@@ -15,8 +57,6 @@ A simple, universal Python wrapper for [CDO (Climate Data Operators)](https://co
 - 📖 **Structured Output**: Parse text commands into Python dictionaries
 - 🧹 **Clean Output**: Automatic temp file management
 - 🐛 **Debug Mode**: Easy troubleshooting with detailed output
-- 📝 **Type Hints**: Full typing support for IDE autocompletion
-- ⚡ **Zero Config**: Works out of the box
 
 ## Installation
 
@@ -41,6 +81,60 @@ conda install -c conda-forge cdo
 
 ## Quick Start
 
+### v1.0.0 API (Recommended)
+
+```python
+from python_cdo_wrapper import CDO, F
+
+cdo = CDO()
+
+# ============================================================
+# PRIMARY API: Django ORM-style lazy query chaining
+# ============================================================
+
+# Build a lazy query - nothing executed yet
+query = (
+    cdo.query("data.nc")
+    .select_var("tas")
+    .select_year(2020, 2021, 2022)
+    .year_mean()
+    .field_mean()
+)
+
+# Inspect before running
+print(query.get_command())
+# Output: "cdo -fldmean -yearmean -selyear,2020,2021,2022 -selname,tas data.nc"
+
+# Execute and get xarray.Dataset
+ds = query.compute()
+
+# ============================================================
+# ONE-LINER ANOMALY CALCULATION with F()
+# ============================================================
+anomaly = cdo.query("monthly_data.nc").sub(F("climatology.nc")).compute()
+
+# Standardized anomaly: (data - mean) / std
+std_anomaly = (
+    cdo.query("data.nc")
+    .sub(F("climatology.nc"))
+    .div(F("std_dev.nc"))
+    .compute()
+)
+
+# ============================================================
+# STRUCTURED INFO COMMANDS
+# ============================================================
+info = cdo.sinfo("data.nc")  # Returns SinfoResult dataclass
+print(info.var_names)        # ['tas', 'pr', 'psl']
+print(info.nvar)             # 3
+print(info.time_range)       # ('2020-01-01', '2022-12-31')
+
+grid = cdo.griddes("data.nc")  # Returns GriddesResult
+print(grid.grids[0].gridtype)  # 'lonlat'
+```
+
+### v0.2.x API (Legacy - Still Works!)
+
 ```python
 from python_cdo_wrapper import cdo
 
@@ -58,7 +152,247 @@ ds, log = cdo("-yearmean -selname,temperature input.nc")
 
 ## Usage Examples
 
-### Getting File Information
+### v1.0.0 API - Query Chaining
+
+#### Selection and Statistical Operations
+
+```python
+from python_cdo_wrapper import CDO
+
+cdo = CDO()
+
+# Select variables and compute statistics
+ds = (
+    cdo.query("era5_global.nc")
+    .select_var("tas", "pr")
+    .select_year(2020, 2021, 2022)
+    .select_region(lon1=-10, lon2=40, lat1=35, lat2=70)  # Europe
+    .year_mean()
+    .compute()
+)
+
+# Multiple temporal selections
+winter_data = (
+    cdo.query("data.nc")
+    .select_season("DJF")
+    .select_hour(0, 6, 12, 18)
+    .time_mean()
+    .compute()
+)
+
+# Vertical selection
+upper_air = (
+    cdo.query("pressure_data.nc")
+    .select_var("ta")
+    .select_level(500, 700, 850)  # hPa
+    .vert_mean()
+    .compute()
+)
+```
+
+#### Binary Operations with F()
+
+```python
+from python_cdo_wrapper import CDO, F
+
+cdo = CDO()
+
+# Simple anomaly (ONE LINE!)
+anomaly = cdo.query("monthly_data.nc").sub(F("climatology.nc")).compute()
+
+# Standardized anomaly: (data - mean) / std
+std_anomaly = (
+    cdo.query("data.nc")
+    .sub(F("climatology.nc"))
+    .div(F("std_dev.nc"))
+    .compute()
+)
+
+# Process both sides before subtraction
+temp_diff = (
+    cdo.query("data.nc")
+    .select_var("tas")
+    .select_level(1000)
+    .sub(
+        F("data.nc").select_var("tas").select_level(500)
+    )
+    .compute()
+)
+
+# Model bias calculation
+bias = (
+    cdo.query("model_output.nc")
+    .select_var("tas")
+    .year_mean()
+    .field_mean()
+    .sub(
+        F("observations.nc").select_var("tas").year_mean().field_mean()
+    )
+    .compute()
+)
+```
+
+#### Query Introspection and Branching
+
+```python
+from python_cdo_wrapper import CDO
+
+cdo = CDO()
+
+# Build base query
+base = (
+    cdo.query("era5_global.nc")
+    .select_var("tas")
+    .select_year(2020, 2021, 2022)
+)
+
+# Inspect command before execution
+print(base.get_command())
+# Output: "cdo -selyear,2020,2021,2022 -selname,tas era5_global.nc"
+
+print(base.explain())
+# Output: Human-readable description of pipeline
+
+# Branch for different analyses
+annual_mean = base.clone().year_mean().compute()
+monthly_clim = base.clone().month_mean().compute()
+spatial_std = base.clone().time_std().compute()
+
+# Advanced query methods (Django-like)
+first_timestep = base.first()  # Get first timestep only
+last_timestep = base.last()    # Get last timestep only
+num_timesteps = base.count()   # Get number of timesteps
+has_data = base.exists()       # Check if data exists
+```
+
+#### Interpolation and Regridding
+
+```python
+from python_cdo_wrapper import CDO
+from python_cdo_wrapper.types import GridSpec
+
+cdo = CDO()
+
+# Regrid to standard grid
+ds = (
+    cdo.query("high_res_data.nc")
+    .select_var("tas")
+    .remap_bil(GridSpec.global_1deg())  # Bilinear to 1° grid
+    .year_mean()
+    .compute()
+)
+
+# Conservative remapping for flux variables
+flux = (
+    cdo.query("model_output.nc")
+    .select_var("pr")
+    .remap_con("r360x180")  # First-order conservative
+    .compute()
+)
+
+# Regrid to match another file's grid
+matched = (
+    cdo.query("source.nc")
+    .remap_bil("target_grid.nc")
+    .compute()
+)
+```
+
+#### Modification Operations
+
+```python
+from python_cdo_wrapper import CDO
+
+cdo = CDO()
+
+# Metadata modification
+cleaned = (
+    cdo.query("raw_data.nc")
+    .set_name("temperature")
+    .set_unit("Celsius")
+    .set_missval(-999.0)
+    .compute("cleaned.nc")
+)
+
+# Convert Kelvin to Celsius in pipeline
+celsius = (
+    cdo.query("tas_kelvin.nc")
+    .sub_constant(273.15)
+    .set_unit("Celsius")
+    .compute()
+)
+```
+
+#### Structured Info Commands (v1.0.0)
+
+```python
+from python_cdo_wrapper import CDO
+
+cdo = CDO()
+
+# Get structured file information
+info = cdo.sinfo("data.nc")  # Returns SinfoResult dataclass
+print(info.var_names)        # ['tas', 'pr', 'psl']
+print(info.nvar)             # 3
+print(info.time_range)       # ('2020-01-01', '2022-12-31')
+print(info.file_format)      # 'NetCDF'
+
+# Grid information
+grid = cdo.griddes("data.nc")  # Returns GriddesResult
+print(grid.grids[0].gridtype)  # 'lonlat'
+print(grid.grids[0].xsize)     # 360
+print(grid.grids[0].ysize)     # 180
+
+# Variable list
+vlist = cdo.vlist("data.nc")  # Returns VlistResult
+for var in vlist.variables:
+    print(f"{var.name}: {var.longname} [{var.units}]")
+
+# Parameter table
+partab = cdo.partab("data.nc")  # Returns PartabResult
+for param in partab.parameters:
+    print(f"{param.code}: {param.name}")
+```
+
+#### File Operations
+
+```python
+from python_cdo_wrapper import CDO
+
+cdo = CDO()
+
+# Merge multiple files (variables)
+merged = cdo.merge("tas.nc", "pr.nc", "psl.nc", output="combined.nc")
+
+# Merge time series
+full_series = cdo.mergetime(
+    "data_2020.nc", "data_2021.nc", "data_2022.nc",
+    output="data_2020-2022.nc"
+)
+
+# Concatenate files
+combined = cdo.cat("file1.nc", "file2.nc", "file3.nc")
+
+# Split operations
+cdo.splityear("long_timeseries.nc", prefix="yearly_")
+# Creates: yearly_2020.nc, yearly_2021.nc, ...
+
+cdo.splitname("multi_var.nc", prefix="var_")
+# Creates: var_tas.nc, var_pr.nc, ...
+
+# Format conversion with query
+ds = (
+    cdo.query("data.nc")
+    .select_var("tas")
+    .year_mean()
+    .output_format("nc4")  # NetCDF4 output
+    .compute("output.nc")
+)
+```
+
+### v0.2.x API - Legacy (Still Supported!)
+
+#### Getting File Information
 
 ```python
 from python_cdo_wrapper import cdo
@@ -71,59 +405,12 @@ print(info)
 grid = cdo("griddes data.nc")
 print(grid)
 
-# Time information
-times = cdo("showtimestamp data.nc")
-print(times)
-
-# Variable names
-vars = cdo("showname data.nc")
-print(vars)
-```
-
-### Structured Output (New in v0.2.0!)
-
-Get structured dictionaries instead of raw text for easier programmatic access:
-
-```python
-from python_cdo_wrapper import cdo
-
-# Get grid information as a dictionary
+# Structured output (v0.2.x feature)
 grid_dict = cdo("griddes data.nc", return_dict=True)
 print(grid_dict["gridtype"])  # 'lonlat'
-print(f"{grid_dict['xsize']} x {grid_dict['ysize']}")  # '360 x 180'
-print(f"Resolution: {grid_dict['xinc']}°")  # 'Resolution: 1.0°'
-
-# Get dataset information as structured data
-info_dict = cdo("sinfo data.nc", return_dict=True)
-print(info_dict["metadata"]["format"])  # 'NetCDF'
-for var in info_dict["variables"]:
-    print(f"Variable: {var['name']}")
-
-# Get variable attributes
-attrs = cdo("showatts data.nc", return_dict=True)
-for var_name, var_attrs in attrs.items():
-    print(f"{var_name}: {var_attrs.get('units', 'no units')}")
-
-# Get global attributes
-global_attrs = cdo("showattsglob data.nc", return_dict=True)
-print(global_attrs.get("title", "No title"))
-
-# Get vertical axis information
-zaxis = cdo("zaxisdes data.nc", return_dict=True)
-print(f"Levels: {zaxis['levels']}")
 ```
 
-**Supported structured commands:**
-- `griddes`, `griddes2` - Grid information
-- `zaxisdes` - Vertical axis information
-- `sinfo`, `info`, `infon`, `infov`, `sinfon`, `sinfov` - Dataset information
-- `vlist` - Variable list
-- `showatts` - Variable attributes
-- `showattsglob` - Global attributes
-- `partab`, `codetab` - Parameter tables
-- `vct`, `vct2` - Vertical coordinate tables
-
-### Data Processing
+#### Data Processing
 
 ```python
 from python_cdo_wrapper import cdo
@@ -131,49 +418,14 @@ from python_cdo_wrapper import cdo
 # Calculate yearly mean
 ds, log = cdo("yearmean input.nc")
 
-# Select specific variable
-ds, log = cdo("-selname,temperature input.nc")
-
-# Select time range
-ds, log = cdo("-seldate,2020-01-01,2020-12-31 input.nc")
-
-# Regrid to different resolution
-ds, log = cdo("-remapbil,r360x180 input.nc")
-
-# Calculate field mean
-ds, log = cdo("fldmean input.nc")
-
-# Chain multiple operators
+# Chain operators
 ds, log = cdo("-yearmean -selname,temp -sellonlatbox,-10,30,35,70 input.nc")
-```
 
-### Saving Output
-
-```python
-from python_cdo_wrapper import cdo
-
-# Save to specific file (file persists)
+# Save to file
 ds, log = cdo("yearmean input.nc", output_file="output.nc")
-
-# Without loading into xarray (useful for large files)
-_, log = cdo("yearmean input.nc", output_file="output.nc", return_xr=False)
 ```
 
-### Debugging
-
-```python
-from python_cdo_wrapper import cdo
-
-# Enable debug mode for detailed output
-ds, log = cdo("yearmean input.nc", debug=True)
-# Output:
-# CDO Command: cdo yearmean input.nc /tmp/xxx.nc
-# Return code: 0
-# Stdout: ...
-# Stderr: ...
-```
-
-### Error Handling
+#### Error Handling
 
 ```python
 from python_cdo_wrapper import cdo, CDOError
@@ -181,58 +433,338 @@ from python_cdo_wrapper import cdo, CDOError
 try:
     ds, log = cdo("invalid_command data.nc")
 except CDOError as e:
-    print(f"CDO failed with code {e.returncode}")
-    print(f"Command: {e.command}")
-    print(f"Error: {e.stderr}")
+    print(f"CDO failed: {e.stderr}")
 except FileNotFoundError as e:
     print(f"File or CDO not found: {e}")
 ```
 
-### Utility Functions
+## Implemented Operators (v1.0.0)
 
-```python
-from python_cdo_wrapper.core import get_cdo_version, list_operators
+All operators are implemented as **query methods first**, with optional convenience methods on the `CDO` class.
 
-# Get CDO version
-version = get_cdo_version()
-print(version)
+### Selection Operators
 
-# List available operators
-ops = list_operators()
-print(ops)
-```
+| Query Method | CDO Operator | Description |
+|--------------|--------------|-------------|
+| `.select_var(*names)` | `-selname` | Select variables by name |
+| `.select_code(*codes)` | `-selcode` | Select variables by code |
+| `.select_level(*levels)` | `-sellevel` | Select vertical levels |
+| `.select_level_idx(*indices)` | `-sellevidx` | Select levels by index |
+| `.select_level_type(ltype)` | `-selltype` | Select level type |
+| `.select_year(*years)` | `-selyear` | Select years |
+| `.select_month(*months)` | `-selmon` | Select months |
+| `.select_day(*days)` | `-selday` | Select days |
+| `.select_hour(*hours)` | `-selhour` | Select hours |
+| `.select_season(*seasons)` | `-selseason` | Select seasons (DJF, MAM, JJA, SON) |
+| `.select_date(start, end)` | `-seldate` | Select date range |
+| `.select_time(*times)` | `-seltime` | Select specific times |
+| `.select_timestep(*steps)` | `-seltimestep` | Select timesteps by index |
+| `.select_region(lon1, lon2, lat1, lat2)` | `-sellonlatbox` | Select lon/lat box |
+| `.select_index_box(x1, x2, y1, y2)` | `-selindexbox` | Select index box |
+| `.select_mask(mask_file)` | `-ifthen` | Apply mask file |
+| `.select_grid(grid_num)` | `-selgrid` | Select grid number |
+| `.select_zaxis(zaxis_num)` | `-selzaxis` | Select z-axis number |
 
-## Text vs Data Commands
+### Statistical Operators
 
-The wrapper automatically detects command types:
+| Query Method | CDO Operator | Description |
+|--------------|--------------|-------------|
+| **Time Statistics** | | |
+| `.time_mean()` | `-timmean` | Time mean |
+| `.time_sum()` | `-timsum` | Time sum |
+| `.time_min()` | `-timmin` | Time minimum |
+| `.time_max()` | `-timmax` | Time maximum |
+| `.time_std()` | `-timstd` | Time std deviation |
+| `.time_var()` | `-timvar` | Time variance |
+| **Year/Month/Day Statistics** | | |
+| `.year_mean()` | `-yearmean` | Yearly mean |
+| `.year_sum()` | `-yearsum` | Yearly sum |
+| `.year_min()` | `-yearmin` | Yearly minimum |
+| `.year_max()` | `-yearmax` | Yearly maximum |
+| `.year_std()` | `-yearstd` | Yearly std deviation |
+| `.month_mean()` | `-monmean` | Monthly mean |
+| `.month_sum()` | `-monsum` | Monthly sum |
+| `.month_min()` | `-monmin` | Monthly minimum |
+| `.month_max()` | `-monmax` | Monthly maximum |
+| `.day_mean()` | `-daymean` | Daily mean |
+| `.hour_mean()` | `-hourmean` | Hourly mean |
+| `.season_mean()` | `-seasmean` | Seasonal mean |
+| **Field Statistics** | | |
+| `.field_mean()` | `-fldmean` | Field (spatial) mean |
+| `.field_sum()` | `-fldsum` | Field sum |
+| `.field_min()` | `-fldmin` | Field minimum |
+| `.field_max()` | `-fldmax` | Field maximum |
+| `.field_std()` | `-fldstd` | Field std deviation |
+| `.field_percentile(p)` | `-fldpctl,p` | Field percentile |
+| `.zonal_mean()` | `-zonmean` | Zonal mean |
+| `.meridional_mean()` | `-mermean` | Meridional mean |
+| **Vertical Statistics** | | |
+| `.vert_mean()` | `-vertmean` | Vertical mean |
+| `.vert_sum()` | `-vertsum` | Vertical sum |
+| `.vert_min()` | `-vertmin` | Vertical minimum |
+| `.vert_max()` | `-vertmax` | Vertical maximum |
+| `.vert_int()` | `-vertint` | Vertical integration |
+| **Running Statistics** | | |
+| `.running_mean(n)` | `-runmean,n` | Running mean over n timesteps |
+| `.running_sum(n)` | `-runsum,n` | Running sum over n timesteps |
 
-### Text Commands (return `str`)
-These operators print information and don't produce NetCDF output:
+### Arithmetic Operators
 
-| Category | Operators |
-|----------|-----------|
-| **File Info** | `sinfo`, `info`, `ninfo`, `tinfo`, `vlist` |
-| **Grid** | `griddes`, `showgrid`, `showprojection` |
-| **Variables** | `showname`, `showvar`, `showcode`, `showunit` |
-| **Time** | `showdate`, `showtimestamp`, `showyear`, `showmonth` |
-| **Counts** | `ntsteps`, `nvars`, `nlevels`, `ngrids` |
+| Query Method | CDO Operator | Description |
+|--------------|--------------|-------------|
+| **Binary Operations (with F())** | | |
+| `.sub(F(file))` | `-sub` | Subtract another file |
+| `.add(F(file))` | `-add` | Add another file |
+| `.mul(F(file))` | `-mul` | Multiply by another file |
+| `.div(F(file))` | `-div` | Divide by another file |
+| `.min(F(file))` | `-min` | Element-wise minimum |
+| `.max(F(file))` | `-max` | Element-wise maximum |
+| **Constant Arithmetic** | | |
+| `.add_constant(c)` | `-addc,c` | Add constant |
+| `.sub_constant(c)` | `-subc,c` | Subtract constant |
+| `.mul_constant(c)` | `-mulc,c` | Multiply by constant |
+| `.div_constant(c)` | `-divc,c` | Divide by constant |
+| **Math Functions** | | |
+| `.abs()` | `-abs` | Absolute value |
+| `.sqrt()` | `-sqrt` | Square root |
+| `.sqr()` | `-sqr` | Square |
+| `.exp()` | `-exp` | Exponential |
+| `.ln()` | `-ln` | Natural logarithm |
+| `.log10()` | `-log10` | Base-10 logarithm |
+| `.sin()`, `.cos()`, `.tan()` | `-sin`, `-cos`, `-tan` | Trigonometric |
 
-### Data Commands (return `tuple[xr.Dataset, str]`)
-All other operators that produce NetCDF output:
+### Interpolation Operators
 
-| Category | Example Operators |
-|----------|-------------------|
-| **Statistics** | `yearmean`, `monmean`, `daymean`, `fldmean` |
-| **Selection** | `selname`, `seldate`, `sellevel`, `sellonlatbox` |
-| **Remapping** | `remapbil`, `remapcon`, `remapnn` |
-| **Arithmetic** | `add`, `sub`, `mul`, `div`, `expr` |
-| **Comparison** | `eq`, `ne`, `gt`, `lt` |
+| Query Method | CDO Operator | Description |
+|--------------|--------------|-------------|
+| `.remap_bil(grid)` | `-remapbil,grid` | Bilinear interpolation |
+| `.remap_bic(grid)` | `-remapbic,grid` | Bicubic interpolation |
+| `.remap_nn(grid)` | `-remapnn,grid` | Nearest neighbor |
+| `.remap_dis(grid)` | `-remapdis,grid` | Distance-weighted average |
+| `.remap_con(grid)` | `-remapcon,grid` | First-order conservative |
+| `.remap_con2(grid)` | `-remapcon2,grid` | Second-order conservative |
+| `.remap_laf(grid)` | `-remaplaf,grid` | Largest area fraction |
+| `.interp_level(*levels)` | `-intlevel` | Interpolate to pressure levels |
+| `.ml_to_pl(*levels)` | `-ml2pl` | Model levels to pressure levels |
+
+### Modification Operators
+
+| Query Method | CDO Operator | Description |
+|--------------|--------------|-------------|
+| `.set_name(name)` | `-setname,name` | Set variable name |
+| `.set_code(code)` | `-setcode,code` | Set variable code |
+| `.set_unit(unit)` | `-setunit,unit` | Set units |
+| `.set_level(*levels)` | `-setlevel` | Set level values |
+| `.set_missval(val)` | `-setmissval,val` | Set missing value |
+| `.set_range_to_miss(min, max)` | `-setrtomiss` | Set range to missing |
+| `.miss_to_const(val)` | `-setmisstoc,val` | Set missing to constant |
+| `.set_grid(grid)` | `-setgrid,grid` | Set grid |
+| `.set_grid_type(gtype)` | `-setgridtype` | Set grid type |
+| `.invert_lat()` | `-invertlat` | Invert latitudes |
+
+### Advanced Query Methods (Django-Inspired)
+
+| Method | Description |
+|--------|-------------|
+| `.first()` | Get first timestep only |
+| `.last()` | Get last timestep only |
+| `.count()` | Get number of timesteps (returns int) |
+| `.exists()` | Check if query returns data (returns bool) |
+| `.values(*vars)` | Alias for `.select_var()` |
+| `.get_command()` | Get CDO command string |
+| `.explain()` | Get human-readable pipeline description |
+| `.clone()` | Create a copy for branching |
+
+### Info Operators (CDO Class Methods)
+
+| CDO Method | CDO Operator | Return Type |
+|------------|--------------|-------------|
+| `cdo.sinfo(file)` | `sinfo` | `SinfoResult` |
+| `cdo.info(file)` | `info` | `InfoResult` |
+| `cdo.griddes(file)` | `griddes` | `GriddesResult` |
+| `cdo.zaxisdes(file)` | `zaxisdes` | `ZaxisdesResult` |
+| `cdo.vlist(file)` | `vlist` | `VlistResult` |
+| `cdo.partab(file)` | `partab` | `PartabResult` |
+
+### File Operations (CDO Class Methods)
+
+| CDO Method | CDO Operator | Description |
+|------------|--------------|-------------|
+| `cdo.merge(*files)` | `-merge` | Merge files (variables) |
+| `cdo.mergetime(*files)` | `-mergetime` | Merge time series |
+| `cdo.cat(*files)` | `-cat` | Concatenate files |
+| `cdo.copy(input, output)` | `-copy` | Copy file |
+| `cdo.splityear(file, prefix)` | `-splityear` | Split by year |
+| `cdo.splitmon(file, prefix)` | `-splitmon` | Split by month |
+| `cdo.splitday(file, prefix)` | `-splitday` | Split by day |
+| `cdo.splithour(file, prefix)` | `-splithour` | Split by hour |
+| `cdo.splitname(file, prefix)` | `-splitname` | Split by variable |
+| `cdo.splitlevel(file, prefix)` | `-splitlevel` | Split by level |
 
 ## API Reference
 
-### `cdo(cmd, *, output_file=None, return_xr=True, return_dict=False, debug=False, check_files=True)`
+### v1.0.0 API
+
+#### CDO Class
+
+**Factory and Façade for CDO operations**
+
+```python
+from python_cdo_wrapper import CDO
+
+cdo = CDO(cdo_path="cdo", temp_dir=None)
+```
+
+**Parameters:**
+- `cdo_path` (str): Path to CDO executable (default: "cdo")
+- `temp_dir` (str | Path | None): Directory for temporary files (default: system temp)
+
+**Query Factory:**
+- `cdo.query(input_file)` → `CDOQuery`: Create lazy query builder
+
+**Info Methods:**
+- `cdo.sinfo(file)` → `SinfoResult`: Get structured file info
+- `cdo.griddes(file)` → `GriddesResult`: Get grid description
+- `cdo.vlist(file)` → `VlistResult`: Get variable list
+- `cdo.partab(file)` → `PartabResult`: Get parameter table
+
+**File Operations:**
+- `cdo.merge(*files, output=None)` → `xr.Dataset`: Merge files
+- `cdo.mergetime(*files, output=None)` → `xr.Dataset`: Merge time series
+- `cdo.cat(*files, output=None)` → `xr.Dataset`: Concatenate files
+- `cdo.splityear(file, prefix)`: Split by year
+- `cdo.splitname(file, prefix)`: Split by variable
+
+**Legacy Compatibility:**
+- `cdo.run(cmd, output=None, return_xr=True)` → `tuple[xr.Dataset | None, str]`: Execute string command
+
+#### CDOQuery Class
+
+**Django ORM-style lazy query builder**
+
+```python
+query = cdo.query("data.nc")
+```
+
+**Selection Methods:**
+- `.select_var(*names)` → `CDOQuery`: Select variables
+- `.select_level(*levels)` → `CDOQuery`: Select vertical levels
+- `.select_year(*years)` → `CDOQuery`: Select years
+- `.select_month(*months)` → `CDOQuery`: Select months
+- `.select_region(lon1, lon2, lat1, lat2)` → `CDOQuery`: Select spatial region
+- See [Implemented Operators](#implemented-operators-v100) for full list
+
+**Statistical Methods:**
+- `.year_mean()` → `CDOQuery`: Yearly mean
+- `.month_mean()` → `CDOQuery`: Monthly mean
+- `.time_mean()` → `CDOQuery`: Time mean
+- `.field_mean()` → `CDOQuery`: Spatial mean
+- See [Implemented Operators](#implemented-operators-v100) for full list
+
+**Arithmetic Methods:**
+- `.sub(F(file))` → `BinaryOpQuery`: Subtract file
+- `.add(F(file))` → `BinaryOpQuery`: Add file
+- `.add_constant(c)` → `CDOQuery`: Add constant
+- `.sub_constant(c)` → `CDOQuery`: Subtract constant
+- See [Implemented Operators](#implemented-operators-v100) for full list
+
+**Interpolation Methods:**
+- `.remap_bil(grid)` → `CDOQuery`: Bilinear interpolation
+- `.remap_con(grid)` → `CDOQuery`: Conservative remapping
+- See [Implemented Operators](#implemented-operators-v100) for full list
+
+**Terminal Methods:**
+- `.compute(output=None)` → `xr.Dataset`: Execute query and return dataset
+- `.to_file(output)` → `Path`: Execute and save to file
+- `.get_command()` → `str`: Get CDO command string (no execution)
+- `.explain()` → `str`: Get human-readable description
+- `.clone()` → `CDOQuery`: Create copy for branching
+
+**Advanced Query Methods:**
+- `.first()` → `xr.Dataset`: Get first timestep
+- `.last()` → `xr.Dataset`: Get last timestep
+- `.count()` → `int`: Get number of timesteps
+- `.exists()` → `bool`: Check if data exists
+
+#### F() Function
+
+**Create unbound query for binary operations (Django F-expression pattern)**
+
+```python
+from python_cdo_wrapper import F
+
+# Use F() to reference files in binary operations
+anomaly = cdo.query("data.nc").sub(F("climatology.nc")).compute()
+```
+
+**Parameters:**
+- `input_file` (str | Path): File to reference in binary operation
+
+**Returns:**
+- `CDOQuery`: Unbound query that can be used with `.sub()`, `.add()`, etc.
+
+#### BinaryOpQuery Class
+
+**Query subclass for binary operations** (automatically created by `.sub(F(...))`, etc.)
+
+Supports nested operations using CDO bracket notation (requires CDO >= 1.9.8):
+```python
+# Both sides processed before subtraction
+result = (
+    cdo.query("a.nc").year_mean()
+    .sub(F("b.nc").time_mean())
+    .compute()
+)
+# Generates: cdo -sub [ -yearmean a.nc ] [ -timmean b.nc ]
+```
+
+#### Result Types
+
+**Structured dataclasses for info commands:**
+
+- `SinfoResult`: File info with var_names, nvar, time_range, etc.
+- `GriddesResult`: Grid information
+- `VlistResult`: Variable list
+- `PartabResult`: Parameter table
+- `InfoResult`: Detailed file info
+- `ZaxisdesResult`: Vertical axis info
+
+All result types provide structured access to CDO output with proper types and helper methods.
+
+#### Exceptions
+
+```python
+from python_cdo_wrapper import (
+    CDOError,              # Base exception
+    CDOExecutionError,     # Command execution failed
+    CDOValidationError,    # Invalid parameters
+    CDOFileNotFoundError,  # File not found
+    CDOParseError,         # Output parsing failed
+)
+```
+
+**CDOExecutionError attributes:**
+- `.command`: The CDO command that failed
+- `.returncode`: Exit code
+- `.stdout`: Standard output
+- `.stderr`: Standard error
+
+**CDOValidationError attributes:**
+- `.parameter`: Parameter name
+- `.value`: Invalid value
+- `.expected`: Expected type/format
+
+### v0.2.x API (Legacy)
+
+#### cdo() function
 
 Execute a CDO command and return results as Python objects.
+
+```python
+from python_cdo_wrapper import cdo
+
+result = cdo(cmd, output_file=None, return_xr=True, return_dict=False, debug=False, check_files=True)
+```
 
 **Parameters:**
 | Parameter | Type | Default | Description |
@@ -252,6 +784,20 @@ Execute a CDO command and return results as Python objects.
 - `CDOError`: CDO command failed
 - `FileNotFoundError`: CDO not installed or input file missing
 
+## Requirements
+
+### CDO Version
+
+- **Minimum**: CDO >= 1.9.8 (required for bracket notation in binary operations)
+- **Recommended**: CDO >= 2.0.0
+
+Binary operations using `F()` require CDO >= 1.9.8 for bracket notation support. Other features work with earlier versions.
+
+### Python Version
+
+- **Minimum**: Python 3.9
+- **Tested**: Python 3.9, 3.10, 3.11, 3.12
+
 ## Configuration
 
 ### Environment Variables
@@ -266,16 +812,112 @@ export CDO_TMPDIR=/path/to/tmp
 export OMP_NUM_THREADS=4
 ```
 
+### Custom CDO Path
+
+```python
+from python_cdo_wrapper import CDO
+
+# Use specific CDO installation
+cdo = CDO(cdo_path="/usr/local/bin/cdo")
+
+# Use custom temp directory
+cdo = CDO(temp_dir="/path/to/temp")
+```
+
+## Key Features Explained
+
+### Why Django ORM-Style?
+
+The v1.0.0 query API is inspired by Django's QuerySet pattern because climate data processing naturally fits this paradigm:
+
+| Benefit | Climate Science Use Case |
+|---------|--------------------------|
+| **Lazy Evaluation** | Build complex pipelines, inspect commands, optimize before execution |
+| **Readable Chaining** | `select_var("tas").year_mean().field_mean()` reads like natural language |
+| **Composability** | Create base queries, branch for different analyses (annual, seasonal, regional) |
+| **Type Safety** | IDE autocomplete prevents typos, discovers available operators |
+| **Reusability** | Query templates for standard analysis workflows |
+
+### F() Function (Anomaly Calculations)
+
+Climate science frequently requires calculating anomalies: deviations from climatology. The `F()` function makes this trivial:
+
+```python
+# Traditional approach (multiple steps)
+# 1. Create climatology file separately
+# 2. Calculate anomaly with CDO -sub
+# 3. Manage intermediate files
+
+# v1.0.0 approach (ONE LINE!)
+anomaly = cdo.query("monthly_data.nc").sub(F("climatology.nc")).compute()
+```
+
+The `F()` function references another file in the operation, enabling:
+- **Anomaly calculations**: `data.sub(F("climatology"))`
+- **Bias corrections**: `model.sub(F("observations"))`
+- **Standardization**: `data.sub(F("mean")).div(F("std"))`
+- **Difference fields**: `level1000.sub(F("level500"))`
+
+### Query Introspection
+
+Before executing expensive operations on large files, inspect what will happen:
+
+```python
+query = (
+    cdo.query("era5_global.nc")
+    .select_var("tas")
+    .select_region(-10, 40, 35, 70)
+    .year_mean()
+)
+
+# See exact CDO command
+print(query.get_command())
+# "cdo -yearmean -sellonlatbox,-10,40,35,70 -selname,tas era5_global.nc"
+
+# Human-readable description
+print(query.explain())
+
+# Execute when ready
+ds = query.compute()
+```
+
+### Query Branching
+
+Create base queries and branch for different analyses without duplicating code:
+
+```python
+# Base query: European temperature 2020-2022
+base = (
+    cdo.query("era5.nc")
+    .select_var("tas")
+    .select_region(-10, 40, 35, 70)
+    .select_year(2020, 2021, 2022)
+)
+
+# Branch for different temporal aggregations
+annual = base.clone().year_mean().compute()
+seasonal = base.clone().season_mean().compute()
+monthly = base.clone().month_mean().compute()
+
+# Branch for different spatial aggregations
+field_mean = base.clone().field_mean().compute()
+zonal_mean = base.clone().zonal_mean().compute()
+```
+
 ## Comparison with Other Libraries
 
-| Feature | python-cdo-wrapper | python-cdo | cdo-bindings |
-|---------|-------------------|------------|--------------|
-| Simple API | ✅ Single function | ❌ Object-oriented | ❌ Complex |
-| Auto text detection | ✅ | ❌ | ❌ |
-| xarray integration | ✅ Native | ⚠️ Manual | ⚠️ Manual |
-| Temp file cleanup | ✅ Automatic | ⚠️ Manual | ⚠️ Manual |
-| Type hints | ✅ Full | ❌ | ❌ |
-| Dependencies | Minimal | Heavy | Heavy |
+| Feature | python-cdo-wrapper v1.0 | python-cdo | cdo-bindings |
+|---------|-------------------------|------------|--------------|
+| **Query Chaining** | ✅ Django ORM-style | ❌ | ❌ |
+| **Lazy Evaluation** | ✅ Build before execute | ❌ Immediate | ❌ Immediate |
+| **F() for Anomalies** | ✅ One-liner | ❌ Manual | ❌ Manual |
+| **Query Introspection** | ✅ `.get_command()`, `.explain()` | ❌ | ❌ |
+| **Type Safety** | ✅ Full type hints | ❌ | ❌ |
+| **Structured Results** | ✅ Dataclasses | ❌ Strings | ❌ Strings |
+| **xarray Integration** | ✅ Native | ⚠️ Manual | ⚠️ Manual |
+| **Temp File Cleanup** | ✅ Automatic | ⚠️ Manual | ⚠️ Manual |
+| **Legacy API Support** | ✅ v0.2.x still works | N/A | N/A |
+| **Dependencies** | Minimal | Heavy | Heavy |
 
 ## Development
 
@@ -332,6 +974,137 @@ hatch build
 twine check dist/*
 ```
 
+## Real-World Climate Science Examples
+
+### Example 1: Multi-Model Ensemble Analysis
+
+```python
+from python_cdo_wrapper import CDO
+
+cdo = CDO()
+
+# Process multiple models consistently
+models = ["model_a.nc", "model_b.nc", "model_c.nc"]
+
+# Create reusable processing pipeline
+def process_model(filename):
+    return (
+        cdo.query(filename)
+        .select_var("tas")
+        .select_region(-180, 180, -60, 60)  # Exclude poles
+        .year_mean()
+        .field_mean()
+        .compute()
+    )
+
+ensemble = [process_model(m) for m in models]
+```
+
+### Example 2: Seasonal Climatology and Anomalies
+
+```python
+from python_cdo_wrapper import CDO, F
+
+cdo = CDO()
+
+# Step 1: Create seasonal climatology
+climatology = (
+    cdo.query("historical_1981-2010.nc")
+    .select_var("tas")
+    .season_mean()
+    .time_mean()  # Average over all years
+    .to_file("seasonal_clim.nc")
+)
+
+# Step 2: Calculate seasonal anomalies (ONE LINE!)
+anomalies = (
+    cdo.query("current_data.nc")
+    .select_var("tas")
+    .season_mean()
+    .sub(F("seasonal_clim.nc"))
+    .compute("seasonal_anomalies.nc")
+)
+```
+
+### Example 3: Vertical Cross-Section
+
+```python
+from python_cdo_wrapper import CDO
+
+cdo = CDO()
+
+# Extract zonal mean temperature profile
+zonal_profile = (
+    cdo.query("3d_temperature.nc")
+    .select_var("ta")
+    .select_region(-180, 180, 30, 60)  # Northern mid-latitudes
+    .zonal_mean()
+    .time_mean()
+    .compute()
+)
+```
+
+### Example 4: Regional Climate Index
+
+```python
+from python_cdo_wrapper import CDO
+
+cdo = CDO()
+
+# Define region and compute standardized index
+base_query = (
+    cdo.query("temperature.nc")
+    .select_var("tas")
+    .select_region(-10, 30, 35, 70)  # Mediterranean
+    .field_mean()
+)
+
+# Get climatology
+clim_mean = base_query.clone().time_mean().compute()
+clim_std = base_query.clone().time_std().compute()
+
+# Calculate standardized index
+from python_cdo_wrapper import F
+index = (
+    base_query
+    .sub(F(clim_mean))
+    .div(F(clim_std))
+    .compute("mediterranean_index.nc")
+)
+```
+
+### Example 5: Model-Observation Comparison
+
+```python
+from python_cdo_wrapper import CDO, F
+
+cdo = CDO()
+
+# Regrid model to observation grid and calculate bias
+bias = (
+    cdo.query("model_output.nc")
+    .select_var("tas")
+    .remap_bil("observations.nc")  # Match obs grid
+    .year_mean()
+    .sub(
+        F("observations.nc").select_var("tas").year_mean()
+    )
+    .compute("model_bias.nc")
+)
+
+# Root mean square error field
+rmse = (
+    cdo.query("model_output.nc")
+    .select_var("tas")
+    .remap_bil("observations.nc")
+    .sub(F("observations.nc").select_var("tas"))
+    .sqr()
+    .time_mean()
+    .sqrt()
+    .compute("rmse.nc")
+)
+```
+
 ## Contributing
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
@@ -341,6 +1114,16 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+
+### Development Priorities for v1.0.0+
+
+We welcome contributions in these areas:
+
+- Additional CDO operators as query methods
+- Enhanced parser support for more info commands
+- Query optimization and performance improvements
+- Documentation and examples
+- Integration tests with real climate datasets
 
 ## License
 
@@ -365,9 +1148,42 @@ If you use this package in your research, please consider citing:
 }
 ```
 
+## Migration from v0.x
+
+The v1.0.0 release introduces a **major architectural change** while maintaining full backward compatibility. See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) for detailed upgrade instructions.
+
+**Quick Summary:**
+
+```python
+# v0.x - String-based API (STILL WORKS!)
+from python_cdo_wrapper import cdo
+ds, log = cdo("yearmean -selname,tas data.nc")
+
+# v1.0 - Django ORM-style API (RECOMMENDED)
+from python_cdo_wrapper import CDO
+cdo = CDO()
+ds = cdo.query("data.nc").select_var("tas").year_mean().compute()
+
+# v1.0 - Anomaly calculation made easy
+from python_cdo_wrapper import F
+anomaly = cdo.query("data.nc").sub(F("climatology.nc")).compute()
+```
+
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for a list of changes.
+See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
+
+### v1.0.0 Highlights (December 2025)
+
+- **Django ORM-style Query API**: Lazy, chainable query builder as primary interface
+- **F() Function**: One-liner anomaly calculations with binary operations
+- **Query Introspection**: `.get_command()`, `.explain()`, `.clone()`
+- **Structured Result Types**: All info commands return typed dataclasses
+- **Complete Operator Coverage**: Selection, statistics, arithmetic, interpolation, modification
+- **Advanced Query Methods**: `.first()`, `.last()`, `.count()`, `.exists()`
+- **Query Templates**: Reusable pipeline patterns
+- **Full Type Safety**: Complete type hints with IDE autocompletion
+- **Backward Compatibility**: v0.2.x string-based API still fully supported
 
 ---
 
