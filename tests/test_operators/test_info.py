@@ -95,7 +95,7 @@ class TestSinfoOperator:
         """Test CDO.sinfo() method with mocked subprocess."""
         cdo = CDO()
 
-        with patch("python_cdo_wrapper.cdo.subprocess.run") as mock_run:
+        with patch("python_cdo_wrapper.core.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
                 returncode=0,
                 stdout=SAMPLE_SINFO,
@@ -138,7 +138,7 @@ class TestInfoOperator:
         """Test CDO.info() method with mocked subprocess."""
         cdo = CDO()
 
-        with patch("python_cdo_wrapper.cdo.subprocess.run") as mock_run:
+        with patch("python_cdo_wrapper.core.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
                 returncode=0,
                 stdout=SAMPLE_INFO,
@@ -175,7 +175,7 @@ class TestGriddesOperator:
         """Test CDO.griddes() method with mocked subprocess."""
         cdo = CDO()
 
-        with patch("python_cdo_wrapper.cdo.subprocess.run") as mock_run:
+        with patch("python_cdo_wrapper.core.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
                 returncode=0,
                 stdout=SAMPLE_GRIDDES,
@@ -212,7 +212,7 @@ class TestZaxisdesOperator:
         """Test CDO.zaxisdes() method with mocked subprocess."""
         cdo = CDO()
 
-        with patch("python_cdo_wrapper.cdo.subprocess.run") as mock_run:
+        with patch("python_cdo_wrapper.core.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
                 returncode=0,
                 stdout=SAMPLE_ZAXISDES,
@@ -247,7 +247,7 @@ class TestVlistOperator:
         """Test CDO.vlist() method with mocked subprocess."""
         cdo = CDO()
 
-        with patch("python_cdo_wrapper.cdo.subprocess.run") as mock_run:
+        with patch("python_cdo_wrapper.core.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
                 returncode=0,
                 stdout=SAMPLE_VLIST,
@@ -349,7 +349,7 @@ class TestPartabCDOMethod:
 2 | pr | kg m-2 s-1 | Precipitation
         """
 
-        with patch("python_cdo_wrapper.cdo.subprocess.run") as mock_run:
+        with patch("python_cdo_wrapper.core.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
                 returncode=0,
                 stdout=sample_output,

@@ -15,7 +15,7 @@ class TestCDOInitialization:
 
     def test_cdo_init_default(self):
         """Test CDO initialization with default parameters."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
             assert cdo.cdo_path == "cdo"
             assert cdo.temp_dir is None
@@ -24,33 +24,39 @@ class TestCDOInitialization:
 
     def test_cdo_init_custom_path(self):
         """Test CDO initialization with custom path."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO(cdo_path="/usr/local/bin/cdo")
             assert cdo.cdo_path == "/usr/local/bin/cdo"
 
     def test_cdo_init_with_temp_dir(self, tmp_path):
         """Test CDO initialization with custom temp directory."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO(temp_dir=str(tmp_path))
             assert cdo.temp_dir == tmp_path
 
     def test_cdo_init_with_debug(self):
         """Test CDO initialization with debug enabled."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO(debug=True)
             assert cdo.debug is True
 
     def test_cdo_init_with_env(self):
         """Test CDO initialization with environment variables."""
         env = {"CDO_PCTL_NBINS": "101"}
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO(env=env)
             assert cdo.env == env
 
     def test_cdo_init_fails_if_not_available(self):
         """Test that initialization fails if CDO is not available."""
         with (
-            patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=False),
+            patch.object(
+                CDO,
+                "_check_cdo_available",
+                side_effect=RuntimeError(
+                    "CDO is not available at 'cdo'. Please ensure CDO is installed and accessible."
+                ),
+            ),
             pytest.raises(RuntimeError, match="CDO is not available"),
         ):
             CDO()
@@ -58,9 +64,9 @@ class TestCDOInitialization:
     def test_cdo_repr(self):
         """Test CDO string representation."""
         with (
-            patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True),
+            patch.object(CDO, "_check_cdo_available"),
             patch(
-                "python_cdo_wrapper.cdo.get_cdo_version",
+                "python_cdo_wrapper.utils.get_cdo_version",
                 return_value="Climate Data Operators version 2.0.5",
             ),
         ):
@@ -77,10 +83,10 @@ class TestCDOVersion:
     def test_version_property(self):
         """Test that version property returns CDO version."""
         with (
-            patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True),
-            patch(
-                "python_cdo_wrapper.cdo.get_cdo_version",
-                return_value="Climate Data Operators version 2.0.5",
+            patch.object(
+                CDO,
+                "version",
+                new_callable=MagicMock(return_value="2.0.5"),
             ),
         ):
             cdo = CDO()
@@ -92,14 +98,14 @@ class TestCDOLegacyRun:
 
     def test_run_method_exists(self):
         """Test that run() method exists for backward compatibility."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
             assert hasattr(cdo, "run")
             assert callable(cdo.run)
 
     def test_run_delegates_to_legacy_cdo(self):
         """Test that run() delegates to legacy cdo function."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_result = MagicMock()
@@ -119,7 +125,7 @@ class TestCDOExecuteTextCommand:
 
     def test_execute_text_command_success(self):
         """Test successful execution of text command."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_result = MagicMock()
@@ -135,7 +141,7 @@ class TestCDOExecuteTextCommand:
 
     def test_execute_text_command_failure(self):
         """Test that failed command raises CDOExecutionError."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_result = MagicMock()
@@ -155,7 +161,7 @@ class TestCDOExecuteTextCommand:
     def test_execute_text_command_with_env(self):
         """Test that environment variables are passed to subprocess."""
         env = {"CDO_PCTL_NBINS": "101"}
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO(env=env)
 
             mock_result = MagicMock()
@@ -198,7 +204,7 @@ class TestCDOExecuteDataCommand:
 
     def test_execute_data_command_failure(self):
         """Test that failed data command raises CDOExecutionError."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_result = MagicMock()
@@ -219,7 +225,7 @@ class TestCDOShowMethods:
 
     def test_showname(self, sample_nc_file):
         """Test showname() returns list of variable names."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             with patch.object(
@@ -235,7 +241,7 @@ class TestCDOShowMethods:
 
     def test_showname_single_var(self, sample_nc_file):
         """Test showname() with single variable."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             with patch.object(cdo, "_execute_text_command", return_value="temperature"):
@@ -244,7 +250,7 @@ class TestCDOShowMethods:
 
     def test_showcode(self, sample_nc_file):
         """Test showcode() returns list of variable codes."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             with patch.object(cdo, "_execute_text_command", return_value="11 33 52"):
@@ -256,7 +262,7 @@ class TestCDOShowMethods:
 
     def test_showcode_single(self, sample_nc_file):
         """Test showcode() with single code."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             with patch.object(cdo, "_execute_text_command", return_value="11"):
@@ -265,7 +271,7 @@ class TestCDOShowMethods:
 
     def test_showunit(self, sample_nc_file):
         """Test showunit() returns list of units."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             with patch.object(cdo, "_execute_text_command", return_value="K Pa %"):
@@ -277,7 +283,7 @@ class TestCDOShowMethods:
 
     def test_showlevel(self, sample_nc_file):
         """Test showlevel() returns list of levels."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             with patch.object(
@@ -291,7 +297,7 @@ class TestCDOShowMethods:
 
     def test_showlevel_float_values(self, sample_nc_file):
         """Test showlevel() with float values."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             with patch.object(
@@ -302,7 +308,7 @@ class TestCDOShowMethods:
 
     def test_showdate(self, sample_nc_file):
         """Test showdate() returns list of dates."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             with patch.object(
@@ -318,7 +324,7 @@ class TestCDOShowMethods:
 
     def test_showtime(self, sample_nc_file):
         """Test showtime() returns list of times."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             with patch.object(
@@ -332,7 +338,7 @@ class TestCDOShowMethods:
 
     def test_ntime(self, sample_nc_file):
         """Test ntime() returns number of timesteps."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             with patch.object(cdo, "_execute_text_command", return_value="365"):
@@ -344,7 +350,7 @@ class TestCDOShowMethods:
 
     def test_nvar(self, sample_nc_file):
         """Test nvar() returns number of variables."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             with patch.object(cdo, "_execute_text_command", return_value="5"):
@@ -356,7 +362,7 @@ class TestCDOShowMethods:
 
     def test_nlevel(self, sample_nc_file):
         """Test nlevel() returns number of levels."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             with patch.object(cdo, "_execute_text_command", return_value="17"):
@@ -372,7 +378,7 @@ class TestCDOBinaryOperators:
 
     def test_add(self, sample_nc_file, tmp_path):
         """Test add() delegates to _execute_multi_file_op."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -388,7 +394,7 @@ class TestCDOBinaryOperators:
 
     def test_add_with_output(self, sample_nc_file, tmp_path):
         """Test add() with output file specified."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -405,7 +411,7 @@ class TestCDOBinaryOperators:
 
     def test_sub(self, sample_nc_file, tmp_path):
         """Test sub() delegates to _execute_multi_file_op."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -421,7 +427,7 @@ class TestCDOBinaryOperators:
 
     def test_mul(self, sample_nc_file, tmp_path):
         """Test mul() delegates to _execute_multi_file_op."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -437,7 +443,7 @@ class TestCDOBinaryOperators:
 
     def test_div(self, sample_nc_file, tmp_path):
         """Test div() delegates to _execute_multi_file_op."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -453,7 +459,7 @@ class TestCDOBinaryOperators:
 
     def test_min(self, sample_nc_file, tmp_path):
         """Test min() delegates to _execute_multi_file_op."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -469,7 +475,7 @@ class TestCDOBinaryOperators:
 
     def test_max(self, sample_nc_file, tmp_path):
         """Test max() delegates to _execute_multi_file_op."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -485,7 +491,7 @@ class TestCDOBinaryOperators:
 
     def test_atan2(self, sample_nc_file, tmp_path):
         """Test atan2() delegates to _execute_multi_file_op."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -505,7 +511,7 @@ class TestCDOConstantOperators:
 
     def test_addc(self, sample_nc_file):
         """Test addc() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -523,7 +529,7 @@ class TestCDOConstantOperators:
 
     def test_addc_with_output(self, sample_nc_file, tmp_path):
         """Test addc() with output file."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -540,7 +546,7 @@ class TestCDOConstantOperators:
 
     def test_subc(self, sample_nc_file):
         """Test subc() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -558,7 +564,7 @@ class TestCDOConstantOperators:
 
     def test_mulc(self, sample_nc_file):
         """Test mulc() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -576,7 +582,7 @@ class TestCDOConstantOperators:
 
     def test_divc(self, sample_nc_file):
         """Test divc() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -598,7 +604,7 @@ class TestCDOTimeStatisticalOperators:
 
     def test_timmean(self, sample_nc_file):
         """Test timmean() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -616,7 +622,7 @@ class TestCDOTimeStatisticalOperators:
 
     def test_timsum(self, sample_nc_file):
         """Test timsum() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -632,7 +638,7 @@ class TestCDOTimeStatisticalOperators:
 
     def test_timmin(self, sample_nc_file):
         """Test timmin() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -648,7 +654,7 @@ class TestCDOTimeStatisticalOperators:
 
     def test_timmax(self, sample_nc_file):
         """Test timmax() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -664,7 +670,7 @@ class TestCDOTimeStatisticalOperators:
 
     def test_timstd(self, sample_nc_file):
         """Test timstd() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -684,7 +690,7 @@ class TestCDOYearStatisticalOperators:
 
     def test_yearmean(self, sample_nc_file):
         """Test yearmean() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -702,7 +708,7 @@ class TestCDOYearStatisticalOperators:
 
     def test_yearsum(self, sample_nc_file):
         """Test yearsum() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -718,7 +724,7 @@ class TestCDOYearStatisticalOperators:
 
     def test_yearmin(self, sample_nc_file):
         """Test yearmin() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -734,7 +740,7 @@ class TestCDOYearStatisticalOperators:
 
     def test_yearmax(self, sample_nc_file):
         """Test yearmax() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -750,7 +756,7 @@ class TestCDOYearStatisticalOperators:
 
     def test_yearstd(self, sample_nc_file):
         """Test yearstd() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -770,7 +776,7 @@ class TestCDOMonthStatisticalOperators:
 
     def test_monmean(self, sample_nc_file):
         """Test monmean() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -788,7 +794,7 @@ class TestCDOMonthStatisticalOperators:
 
     def test_monsum(self, sample_nc_file):
         """Test monsum() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -804,7 +810,7 @@ class TestCDOMonthStatisticalOperators:
 
     def test_monmin(self, sample_nc_file):
         """Test monmin() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -820,7 +826,7 @@ class TestCDOMonthStatisticalOperators:
 
     def test_monmax(self, sample_nc_file):
         """Test monmax() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -836,7 +842,7 @@ class TestCDOMonthStatisticalOperators:
 
     def test_monstd(self, sample_nc_file):
         """Test monstd() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -856,7 +862,7 @@ class TestCDODayStatisticalOperators:
 
     def test_daymean(self, sample_nc_file):
         """Test daymean() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -874,7 +880,7 @@ class TestCDODayStatisticalOperators:
 
     def test_daysum(self, sample_nc_file):
         """Test daysum() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -894,7 +900,7 @@ class TestCDOFieldStatisticalOperators:
 
     def test_fldmean(self, sample_nc_file):
         """Test fldmean() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -912,7 +918,7 @@ class TestCDOFieldStatisticalOperators:
 
     def test_fldsum(self, sample_nc_file):
         """Test fldsum() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -928,7 +934,7 @@ class TestCDOFieldStatisticalOperators:
 
     def test_fldmin(self, sample_nc_file):
         """Test fldmin() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -944,7 +950,7 @@ class TestCDOFieldStatisticalOperators:
 
     def test_fldmax(self, sample_nc_file):
         """Test fldmax() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -960,7 +966,7 @@ class TestCDOFieldStatisticalOperators:
 
     def test_fldstd(self, sample_nc_file):
         """Test fldstd() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -980,7 +986,7 @@ class TestCDOZonalMeridionalOperators:
 
     def test_zonmean(self, sample_nc_file):
         """Test zonmean() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
@@ -998,7 +1004,7 @@ class TestCDOZonalMeridionalOperators:
 
     def test_mermean(self, sample_nc_file):
         """Test mermean() delegates to query layer."""
-        with patch("python_cdo_wrapper.cdo.check_cdo_available", return_value=True):
+        with patch.object(CDO, "_check_cdo_available"):
             cdo = CDO()
 
             mock_dataset = MagicMock()
