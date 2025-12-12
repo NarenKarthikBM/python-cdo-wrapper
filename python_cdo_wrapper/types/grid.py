@@ -26,9 +26,9 @@ class GridInfo:
     xinc: float | None = None
     yfirst: float | None = None
     yinc: float | None = None
-    # Additional fields for other grid types
     xvals: list[float] | None = None
     yvals: list[float] | None = None
+    scanningMode: float | None = None
 
     @property
     def lon_range(self) -> tuple[float, float] | None:
