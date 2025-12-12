@@ -2293,7 +2293,7 @@ class BinaryOpQuery(CDOQuery):
             query: Operand query (CDOQuery or BinaryOpQuery)
 
         Returns:
-            Command fragment (e.g., "[ -yearmean data.nc ]" or "data.nc")
+            Command fragment (e.g., "[ -sub -yearmean data.nc a.nc ]" or "-timmean data.nc")
         """
         # Handle nested BinaryOpQuery (chained binary operations)
         if isinstance(query, BinaryOpQuery):
@@ -2314,9 +2314,8 @@ class BinaryOpQuery(CDOQuery):
             # Simple file reference
             return str(query._input)
 
-        # Complex pipeline - needs brackets
         ops = " ".join(op.to_cdo_fragment() for op in reversed(query._operators))
-        return f"[ {ops} {query._input} ]"
+        return f"{ops} {query._input}"
 
     def compute(self, output: str | Path | None = None) -> xr.Dataset:
         """
