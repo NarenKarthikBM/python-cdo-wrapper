@@ -2188,6 +2188,8 @@ class CDOQuery:
         import os
         import tempfile
 
+        if self._cdo is None:
+            raise CDOError("Query not bound to a CDO instance")
         if self._input is None:
             raise CDOError("Query has no input file (is it a template?)")
 
