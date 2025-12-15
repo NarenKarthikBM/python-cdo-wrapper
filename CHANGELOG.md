@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Information Operators as Terminating Query Methods**: All CDO information operators now available as terminating methods on `CDOQuery`
+  - Variable info: `.showname()`, `.showcode()`, `.showunit()`, `.showlevel()`
+  - Time info: `.showdate()`, `.showtime()`, `.ntime()`
+  - Count info: `.nvar()`, `.nlevel()`
+  - Dataset info: `.sinfo()`, `.info()`, `.vlist()`, `.partab()`
+  - Grid info: `.griddes()`, `.zaxisdes()`
+  - Execute immediately and return parsed results (like `.compute()`)
+  - Work with or without operators in the pipeline
+  - Example: `vars = cdo.query("data.nc").year_mean().showname()`
+
 ## [1.0.0] - 2025-12-12
 
 ### Added - Core Architecture

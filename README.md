@@ -122,7 +122,7 @@ std_anomaly = (
 )
 
 # ============================================================
-# STRUCTURED INFO COMMANDS
+# STRUCTURED INFO COMMANDS (CDO class methods)
 # ============================================================
 info = cdo.sinfo("data.nc")  # Returns SinfoResult dataclass
 print(info.var_names)        # ['tas', 'pr', 'psl']
@@ -131,6 +131,22 @@ print(info.time_range)       # ('2020-01-01', '2022-12-31')
 
 grid = cdo.griddes("data.nc")  # Returns GriddesResult
 print(grid.grids[0].gridtype)  # 'lonlat'
+
+# ============================================================
+# INFO OPERATORS AS QUERY TERMINATORS (NEW!)
+# ============================================================
+# Get info about processed data - no need for intermediate files!
+vars = cdo.query("data.nc").year_mean().showname()  # ['tas', 'pr']
+n_times = cdo.query("data.nc").select_year(2020).ntime()  # 12
+grid = cdo.query("data.nc").remap_bil("r180x90").griddes()  # GriddesResult
+
+# Chain processing and get metadata in one line
+dates = (
+    cdo.query("data.nc")
+    .select_var("tas")
+    .select_year(2020, 2021)
+    .showdate()  # Returns list of dates after selection
+)
 ```
 
 ### v0.2.x API (Legacy - Still Works!)

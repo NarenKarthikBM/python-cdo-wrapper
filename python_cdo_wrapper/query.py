@@ -17,6 +17,14 @@ if TYPE_CHECKING:
 
     from .cdo import CDO
     from .types.grid import GridSpec
+    from .types.results import (
+        GriddesResult,
+        InfoResult,
+        PartabResult,
+        SinfoResult,
+        VlistResult,
+        ZaxisdesResult,
+    )
 
 from .exceptions import CDOError, CDOValidationError
 from .operators.base import OperatorSpec
@@ -2162,6 +2170,440 @@ class CDOQuery:
                 full_cmd, cdo_path=self._cdo.cdo_path, debug=self._cdo.debug
             )
             return int(result.strip()) if result.strip() else 0
+
+    # ========== Information Operators (Terminating) ==========
+
+    def _execute_info_with_pipeline(self, info_method_name: str) -> Any:
+        """
+        Execute query pipeline and run info operator on result.
+
+        Helper method for info operators when pipeline has operators.
+
+        Args:
+            info_method_name: Name of CDO method to call (e.g., 'showname', 'griddes')
+
+        Returns:
+            Result from the info method
+        """
+        import os
+        import tempfile
+
+        if self._input is None:
+            raise CDOError("Query has no input file (is it a template?)")
+
+        # Create temp file for pipeline output
+        fd, temp_path = tempfile.mkstemp(suffix=".nc", dir=self._cdo.temp_dir)
+        os.close(fd)
+
+        try:
+            # Execute pipeline to temp file
+            self.compute(output=temp_path)
+
+            # Run info command on temp file
+            info_method = getattr(self._cdo, info_method_name)
+            result = info_method(temp_path)
+
+            return result
+        finally:
+            # Clean up temp file
+            temp_file = Path(temp_path)
+            if temp_file.exists():
+                temp_file.unlink()
+
+    def showname(self) -> list[str]:
+        """
+        Get list of variable names (executes immediately).
+
+        This is a terminating method that runs the query pipeline (if any)
+        and returns the variable names from the result.
+
+        Returns:
+            List of variable names
+
+        Example:
+            >>> # Without operators
+            >>> vars = cdo.query("data.nc").showname()
+            >>> print(vars)
+            ['tas', 'pr', 'psl']
+
+            >>> # With operators
+            >>> vars = cdo.query("data.nc").select_var("tas", "pr").showname()
+            >>> print(vars)
+            ['tas', 'pr']
+
+        See Also:
+            - showcode: Get variable codes
+            - showunit: Get variable units
+        """
+        if self._cdo is None:
+            raise CDOError("Query not bound to a CDO instance")
+        if self._input is None:
+            raise CDOError("Query has no input file (is it a template?)")
+
+        if not self._operators:
+            # No operators - just run showname on input file
+            return self._cdo.showname(self._input)
+        else:
+            # Has operators - execute pipeline first
+            return self._execute_info_with_pipeline("showname")
+
+    def showcode(self) -> list[int]:
+        """
+        Get list of variable codes (executes immediately).
+
+        Returns:
+            List of variable codes
+
+        Example:
+            >>> codes = cdo.query("data.nc").showcode()
+            >>> print(codes)
+            [11, 228, 134]
+        """
+        if self._cdo is None:
+            raise CDOError("Query not bound to a CDO instance")
+        if self._input is None:
+            raise CDOError("Query has no input file (is it a template?)")
+
+        if not self._operators:
+            return self._cdo.showcode(self._input)
+        else:
+            return self._execute_info_with_pipeline("showcode")
+
+    def showunit(self) -> list[str]:
+        """
+        Get list of variable units (executes immediately).
+
+        Returns:
+            List of variable units
+
+        Example:
+            >>> units = cdo.query("data.nc").showunit()
+            >>> print(units)
+            ['K', 'kg m-2 s-1', 'Pa']
+        """
+        if self._cdo is None:
+            raise CDOError("Query not bound to a CDO instance")
+        if self._input is None:
+            raise CDOError("Query has no input file (is it a template?)")
+
+        if not self._operators:
+            return self._cdo.showunit(self._input)
+        else:
+            return self._execute_info_with_pipeline("showunit")
+
+    def showlevel(self) -> list[float]:
+        """
+        Get list of vertical levels (executes immediately).
+
+        Returns:
+            List of vertical levels
+
+        Example:
+            >>> levels = cdo.query("data.nc").showlevel()
+            >>> print(levels)
+            [1000.0, 850.0, 500.0, 200.0]
+        """
+        if self._cdo is None:
+            raise CDOError("Query not bound to a CDO instance")
+        if self._input is None:
+            raise CDOError("Query has no input file (is it a template?)")
+
+        if not self._operators:
+            return self._cdo.showlevel(self._input)
+        else:
+            return self._execute_info_with_pipeline("showlevel")
+
+    def showdate(self) -> list[str]:
+        """
+        Get list of dates (executes immediately).
+
+        Returns:
+            List of dates in YYYY-MM-DD format
+
+        Example:
+            >>> dates = cdo.query("data.nc").showdate()
+            >>> print(dates)
+            ['2020-01-01', '2020-02-01', '2020-03-01']
+        """
+        if self._cdo is None:
+            raise CDOError("Query not bound to a CDO instance")
+        if self._input is None:
+            raise CDOError("Query has no input file (is it a template?)")
+
+        if not self._operators:
+            return self._cdo.showdate(self._input)
+        else:
+            return self._execute_info_with_pipeline("showdate")
+
+    def showtime(self) -> list[str]:
+        """
+        Get list of times (executes immediately).
+
+        Returns:
+            List of times in HH:MM:SS format
+
+        Example:
+            >>> times = cdo.query("data.nc").showtime()
+            >>> print(times)
+            ['00:00:00', '06:00:00', '12:00:00', '18:00:00']
+        """
+        if self._cdo is None:
+            raise CDOError("Query not bound to a CDO instance")
+        if self._input is None:
+            raise CDOError("Query has no input file (is it a template?)")
+
+        if not self._operators:
+            return self._cdo.showtime(self._input)
+        else:
+            return self._execute_info_with_pipeline("showtime")
+
+    def ntime(self) -> int:
+        """
+        Get number of timesteps (executes immediately).
+
+        Alias for count() method. Returns the number of timesteps
+        in the dataset after applying any operators in the pipeline.
+
+        Returns:
+            Number of timesteps
+
+        Example:
+            >>> n = cdo.query("data.nc").ntime()
+            >>> print(n)
+            120
+
+            >>> # With selection
+            >>> n = cdo.query("data.nc").select_year(2020).ntime()
+            >>> print(n)
+            12
+
+        See Also:
+            - count: Equivalent method following Django QuerySet pattern
+        """
+        return self.count()
+
+    def nvar(self) -> int:
+        """
+        Get number of variables (executes immediately).
+
+        Returns:
+            Number of variables
+
+        Example:
+            >>> n = cdo.query("data.nc").nvar()
+            >>> print(n)
+            3
+
+            >>> # After selecting variables
+            >>> n = cdo.query("data.nc").select_var("tas").nvar()
+            >>> print(n)
+            1
+        """
+        if self._cdo is None:
+            raise CDOError("Query not bound to a CDO instance")
+        if self._input is None:
+            raise CDOError("Query has no input file (is it a template?)")
+
+        if not self._operators:
+            return self._cdo.nvar(self._input)
+        else:
+            return self._execute_info_with_pipeline("nvar")
+
+    def nlevel(self) -> int:
+        """
+        Get number of vertical levels (executes immediately).
+
+        Returns:
+            Number of vertical levels
+
+        Example:
+            >>> n = cdo.query("data.nc").nlevel()
+            >>> print(n)
+            4
+
+            >>> # After selecting levels
+            >>> n = cdo.query("data.nc").select_level(1000, 850).nlevel()
+            >>> print(n)
+            2
+        """
+        if self._cdo is None:
+            raise CDOError("Query not bound to a CDO instance")
+        if self._input is None:
+            raise CDOError("Query has no input file (is it a template?)")
+
+        if not self._operators:
+            return self._cdo.nlevel(self._input)
+        else:
+            return self._execute_info_with_pipeline("nlevel")
+
+    def sinfo(self) -> SinfoResult:
+        """
+        Get comprehensive dataset summary information (executes immediately).
+
+        Returns structured information about file format, variables,
+        grid coordinates, vertical coordinates, and time information.
+
+        Returns:
+            SinfoResult with structured dataset information
+
+        Example:
+            >>> info = cdo.query("data.nc").sinfo()
+            >>> print(info.var_names)
+            ['tas', 'pr', 'psl']
+            >>> print(info.nvar)
+            3
+            >>> print(info.time_range)
+            ('2020-01-01', '2022-12-31')
+
+            >>> # After processing
+            >>> info = cdo.query("data.nc").year_mean().sinfo()
+
+        See Also:
+            - info: Timestep-by-timestep statistics
+            - vlist: Variable list with metadata
+        """
+        if self._cdo is None:
+            raise CDOError("Query not bound to a CDO instance")
+        if self._input is None:
+            raise CDOError("Query has no input file (is it a template?)")
+
+        if not self._operators:
+            return self._cdo.sinfo(self._input)
+        else:
+            return self._execute_info_with_pipeline("sinfo")
+
+    def info(self) -> InfoResult:
+        """
+        Get timestep-by-timestep statistics (executes immediately).
+
+        Returns:
+            InfoResult with timestep statistics
+
+        Example:
+            >>> info = cdo.query("data.nc").info()
+            >>> print(len(info.timesteps))
+            120
+
+        See Also:
+            - sinfo: Comprehensive dataset summary
+        """
+        if self._cdo is None:
+            raise CDOError("Query not bound to a CDO instance")
+        if self._input is None:
+            raise CDOError("Query has no input file (is it a template?)")
+
+        if not self._operators:
+            return self._cdo.info(self._input)
+        else:
+            return self._execute_info_with_pipeline("info")
+
+    def griddes(self) -> GriddesResult:
+        """
+        Get grid description (executes immediately).
+
+        Returns:
+            GriddesResult with grid information
+
+        Example:
+            >>> grid = cdo.query("data.nc").griddes()
+            >>> print(grid.grids[0].gridtype)
+            'lonlat'
+            >>> print(grid.grids[0].xsize, grid.grids[0].ysize)
+            360 180
+
+            >>> # After remapping
+            >>> grid = cdo.query("data.nc").remap_bil("r180x90").griddes()
+
+        See Also:
+            - zaxisdes: Vertical axis description
+        """
+        if self._cdo is None:
+            raise CDOError("Query not bound to a CDO instance")
+        if self._input is None:
+            raise CDOError("Query has no input file (is it a template?)")
+
+        if not self._operators:
+            return self._cdo.griddes(self._input)
+        else:
+            return self._execute_info_with_pipeline("griddes")
+
+    def zaxisdes(self) -> ZaxisdesResult:
+        """
+        Get vertical axis description (executes immediately).
+
+        Returns:
+            ZaxisdesResult with vertical axis information
+
+        Example:
+            >>> zaxis = cdo.query("data.nc").zaxisdes()
+            >>> print(zaxis.axes[0].zaxistype)
+            'pressure'
+
+        See Also:
+            - griddes: Grid description
+        """
+        if self._cdo is None:
+            raise CDOError("Query not bound to a CDO instance")
+        if self._input is None:
+            raise CDOError("Query has no input file (is it a template?)")
+
+        if not self._operators:
+            return self._cdo.zaxisdes(self._input)
+        else:
+            return self._execute_info_with_pipeline("zaxisdes")
+
+    def vlist(self) -> VlistResult:
+        """
+        Get variable list with metadata (executes immediately).
+
+        Returns:
+            VlistResult with variable metadata
+
+        Example:
+            >>> vlist = cdo.query("data.nc").vlist()
+            >>> for var in vlist.variables:
+            ...     print(f"{var.name}: {var.units}")
+            tas: K
+            pr: kg m-2 s-1
+
+        See Also:
+            - sinfo: Comprehensive dataset summary
+            - showname: Just get variable names
+        """
+        if self._cdo is None:
+            raise CDOError("Query not bound to a CDO instance")
+        if self._input is None:
+            raise CDOError("Query has no input file (is it a template?)")
+
+        if not self._operators:
+            return self._cdo.vlist(self._input)
+        else:
+            return self._execute_info_with_pipeline("vlist")
+
+    def partab(self) -> PartabResult:
+        """
+        Get parameter table information (executes immediately).
+
+        Returns:
+            PartabResult with parameter table information
+
+        Example:
+            >>> partab = cdo.query("data.nc").partab()
+            >>> for param in partab.parameters:
+            ...     print(f"{param.code}: {param.name}")
+
+        See Also:
+            - vlist: Variable list with metadata
+        """
+        if self._cdo is None:
+            raise CDOError("Query not bound to a CDO instance")
+        if self._input is None:
+            raise CDOError("Query has no input file (is it a template?)")
+
+        if not self._operators:
+            return self._cdo.partab(self._input)
+        else:
+            return self._execute_info_with_pipeline("partab")
 
 
 @dataclass(frozen=True)
