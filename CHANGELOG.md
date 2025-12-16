@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v1.1.0]
 
 ### Added
 
@@ -30,6 +30,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Execute immediately and return parsed results (like `.compute()`)
   - Work with or without operators in the pipeline
   - Example: `vars = cdo.query("data.nc").year_mean().showname()`
+
+### Fixed
+
+- **BinaryOpQuery Bracket Removal**: Binary operators no longer generate unnecessary brackets in CDO commands
+  - Binary operators (add, sub, mul, div, min, max) always take exactly two inputs
+  - CDO assigns them unambiguously from right to left, so brackets are not needed
+  - Commands are now cleaner: `cdo -sub -yearmean data.nc clim.nc` instead of `cdo -sub [ -yearmean data.nc ] clim.nc`
+  - Brackets are only needed for variadic operators (cat, merge, apply), not for binary operations
+  - Follows CDO best practices and documentation recommendations
+  - Results in simpler, more readable commands with potentially better performance
 
 ## [1.0.0] - 2025-12-12
 
