@@ -6,7 +6,8 @@ This tests the mask_by_shapefile() operator and shapefile_utils module.
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -18,6 +19,9 @@ from python_cdo_wrapper.exceptions import (
     CDOFileNotFoundError,
     CDOValidationError,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # Check if geopandas is available
 try:
@@ -300,8 +304,9 @@ class TestMaskByShapefileOperator:
 class TestMaskByShapefileWithoutGeopandas:
     """Test behavior when geopandas is not installed."""
 
-    @pytest.mark.skipif(GEOPANDAS_AVAILABLE, reason="geopandas is installed")
-    def test_mask_by_shapefile_no_geopandas_raises(self, sample_nc_file, tmp_path):
+    def test_mask_by_shapefile_no_geopandas_raises(
+        self, sample_nc_for_masking, tmp_path
+    ):
         """Test that mask_by_shapefile raises error without geopandas."""
         cdo = CDO()
 
@@ -309,8 +314,21 @@ class TestMaskByShapefileWithoutGeopandas:
         fake_shapefile = tmp_path / "fake.shp"
         fake_shapefile.touch()
 
-        with pytest.raises(CDOError) as exc_info:
-            cdo.query(sample_nc_file).mask_by_shapefile(fake_shapefile).compute()
+        # Mock builtins.__import__ to simulate geopandas not being installed
+        import builtins
 
-        assert "geopandas" in str(exc_info.value).lower()
-        assert "pip install" in str(exc_info.value).lower()
+        real_import = builtins.__import__
+
+        def mock_import(name, *args, **kwargs):
+            if name in ("geopandas", "shapely"):
+                raise ImportError(f"No module named '{name}'")
+            return real_import(name, *args, **kwargs)
+
+        with patch("builtins.__import__", side_effect=mock_import):
+            with pytest.raises(CDOError) as exc_info:
+                cdo.query(sample_nc_for_masking).mask_by_shapefile(
+                    fake_shapefile
+                ).compute()
+
+            assert "geopandas" in str(exc_info.value).lower()
+            assert "pip install" in str(exc_info.value).lower()

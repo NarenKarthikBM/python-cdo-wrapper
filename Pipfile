@@ -4,6 +4,8 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
+geopandas = "*"
+shapely = "*"
 
 [dev-packages]
 build = "*"

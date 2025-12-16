@@ -638,7 +638,7 @@ class CDOQuery:
         shapefile_path: str | Path,
         lat_name: str = "lat",
         lon_name: str = "lon",
-    ) -> CDOQuery:
+    ) -> BinaryOpQuery:
         """
         Mask data by shapefile polygon extent (complete pipeline).
 
@@ -657,7 +657,7 @@ class CDOQuery:
             lon_name: Longitude coordinate name in NetCDF (default: "lon")
 
         Returns:
-            New query with masking applied
+            BinaryOpQuery with masking applied (ifthen operation)
 
         Raises:
             CDOError: If geopandas not installed or input file not set
@@ -718,13 +718,26 @@ class CDOQuery:
         mask_ds.to_netcdf(mask_path)
         mask_ds.close()
 
-        # Apply mask using ifthen operator (keeps data where mask=1)
-        # The mask file will need to be cleaned up - store path for cleanup
-        new_query = self._add_operator(OperatorSpec("ifthen", args=(str(mask_path),)))
+        # Create mask query (unbound, just references the file)
+        mask_query = CDOQuery._create_unbound(mask_path)
+
+        # Apply mask using ifthen binary operator
+        # CDO syntax: cdo -ifthen mask.nc data.nc output.nc
+        # The mask is the left operand (condition), data is the right operand
+        binary_query = BinaryOpQuery(
+            operator="ifthen",
+            left=mask_query,
+            right=self,
+            cdo_instance=self._cdo,
+        )
 
         # Store temp file path for cleanup (immutable pattern)
-        new_temp_files = (*new_query._temp_files, mask_path)
-        return new_query._clone(temp_files=new_temp_files)
+        # Merge temp files from both operands
+        all_temp_files = (*self._temp_files, mask_path)
+        # Update the binary query's temp files using object.__setattr__ (frozen dataclass pattern)
+        object.__setattr__(binary_query, "_temp_files", all_temp_files)
+
+        return binary_query
 
     # ========== Statistical Operators ==========
 
@@ -1139,6 +1152,7 @@ class CDOQuery:
         object.__setattr__(query, "_options", ())
         object.__setattr__(query, "_operators", ())
         object.__setattr__(query, "_cdo", None)
+        object.__setattr__(query, "_temp_files", ())
         return query
 
     def add_constant(self, value: float) -> CDOQuery:
@@ -2709,19 +2723,25 @@ class CDOQuery:
 @dataclass(frozen=True)
 class BinaryOpQuery(CDOQuery):
     """
-    Query for binary arithmetic operations using CDO bracket notation.
+    Query for binary arithmetic operations in CDO.
 
-    BinaryOpQuery handles operations between two datasets, generating
-    bracket notation when needed for complex pipelines.
+    BinaryOpQuery handles operations between two datasets. Binary operators
+    (add, sub, mul, div, etc.) always take exactly two inputs, so CDO assigns
+    them unambiguously from right to left without needing brackets.
 
-    Bracket notation (CDO >= 1.9.8):
-        cdo -sub [ -yearmean data.nc ] clim.nc
+    Brackets are only needed for variadic operators (cat, merge, apply) that
+    accept a variable number of inputs.
 
     Example:
         >>> # Anomaly calculation
         >>> anomaly = cdo.query("data.nc").year_mean().sub(F("climatology.nc"))
         >>> print(anomaly.get_command())
-        'cdo -sub [ -yearmean data.nc ] climatology.nc'
+        'cdo -sub -yearmean data.nc climatology.nc'
+
+        >>> # Chained binary operations
+        >>> std_anomaly = cdo.query("data.nc").sub(F("mean.nc")).div(F("std.nc"))
+        >>> print(std_anomaly.get_command())
+        'cdo -div -sub data.nc mean.nc std.nc'
     """
 
     _operator: str  # Binary operator: sub, add, mul, div, max, min
@@ -2797,13 +2817,17 @@ class BinaryOpQuery(CDOQuery):
 
     def get_command(self, output: str | Path | None = None) -> str:
         """
-        Build CDO command with bracket notation.
+        Build CDO command without brackets (binary operators don't need them).
+
+        Binary operators (add, sub, mul, div, etc.) always take exactly two inputs
+        and CDO assigns them unambiguously from right to left. Brackets are only
+        needed for variadic operators like -cat, -merge, -apply.
 
         Examples:
             - Simple: cdo -sub a.nc b.nc out.nc
-            - Left has ops: cdo -sub [ -yearmean a.nc ] b.nc out.nc
-            - Both have ops: cdo -sub [ -yearmean a.nc ] [ -fldmean b.nc ] out.nc
-            - Chained binary: cdo -div [ -sub data.nc mean.nc ] std.nc out.nc
+            - Left has ops: cdo -sub -yearmean a.nc b.nc out.nc
+            - Both have ops: cdo -sub -yearmean a.nc -fldmean b.nc out.nc
+            - Chained binary: cdo -div -sub data.nc mean.nc std.nc out.nc
             - With post_operators: cdo -sqrt -abs -sub a.nc b.nc out.nc
         """
         # Special handling for ifthenelse which has 3 operands
@@ -2853,19 +2877,20 @@ class BinaryOpQuery(CDOQuery):
 
     def _get_operand_fragment(self, query: CDOQuery) -> str:
         """
-        Get command fragment for an operand.
+        Get command fragment for an operand without brackets.
 
-        Uses bracket notation if query has operators or is a nested BinaryOpQuery.
+        Binary operators don't need brackets because they always take exactly
+        two inputs. CDO assigns them unambiguously from right to left.
 
         Args:
             query: Operand query (CDOQuery or BinaryOpQuery)
 
         Returns:
-            Command fragment (e.g., "[ -sub -yearmean data.nc a.nc ]" or "-timmean data.nc")
+            Command fragment (e.g., "-sub -yearmean data.nc a.nc" or "-timmean data.nc")
         """
         # Handle nested BinaryOpQuery (chained binary operations)
         if isinstance(query, BinaryOpQuery):
-            # Get the inner binary operation command without 'cdo ' prefix
+            # Get the inner binary operation command recursively
             inner_left = self._get_operand_fragment(query._left)
             inner_right = self._get_operand_fragment(query._right)
             binary_part = f"-{query._operator} {inner_left} {inner_right}"
@@ -2875,13 +2900,14 @@ class BinaryOpQuery(CDOQuery):
                 post_ops = " ".join(
                     op.to_cdo_fragment() for op in reversed(query._post_operators)
                 )
-                return f"[ {post_ops} {binary_part} ]"
-            return f"[ {binary_part} ]"
+                return f"{post_ops} {binary_part}"
+            return binary_part
 
         if not query._operators:
             # Simple file reference
             return str(query._input)
 
+        # Query with operators: just chain them
         ops = " ".join(op.to_cdo_fragment() for op in reversed(query._operators))
         return f"{ops} {query._input}"
 
