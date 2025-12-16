@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Shapefile Masking Operator**: New `mask_by_shapefile()` method for clipping NetCDF files to shapefile polygon extents
+  - One-liner masking: `cdo.query("data.nc").mask_by_shapefile("region.shp").compute()`
+  - Complete automated pipeline: load shapefile → create binary mask → align grids → apply mask
+  - Supports both 1D (regular) and 2D (curvilinear) grids
+  - Automatic CRS reprojection to WGS84 if needed
+  - Multi-polygon support for complex regional boundaries
+  - Custom coordinate naming: `lat_name="latitude"`, `lon_name="longitude"`
+  - Chainable with other operators: `.mask_by_shapefile("region.shp").year_mean()`
+  - Automatic cleanup of temporary mask files
+  - Requires optional dependency: `pip install python-cdo-wrapper[shapefiles]`
+  - New `shapefile_utils` module with `create_mask_from_shapefile()` helper function
+
 - **Information Operators as Terminating Query Methods**: All CDO information operators now available as terminating methods on `CDOQuery`
   - Variable info: `.showname()`, `.showcode()`, `.showunit()`, `.showlevel()`
   - Time info: `.showdate()`, `.showtime()`, `.ntime()`

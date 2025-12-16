@@ -59,6 +59,14 @@ from python_cdo_wrapper.parsers_legacy import (
 
 # v1.0.0+ Query API (PRIMARY)
 from python_cdo_wrapper.query import BinaryOpQuery, CDOQuery, CDOQueryTemplate, F
+
+# Shapefile utilities (optional - requires geopandas)
+try:
+    from python_cdo_wrapper.shapefile_utils import create_mask_from_shapefile
+except ImportError:
+    # geopandas not installed - shapefile masking not available
+    pass
+
 from python_cdo_wrapper.types.grid import (
     GridInfo,
     GridSpec,
@@ -126,6 +134,7 @@ __all__ = [
     "ZaxisdesResult",
     "__version__",
     "cdo",
+    "create_mask_from_shapefile",
     "get_cdo_version",
     "get_supported_structured_commands",
     "list_operators",
