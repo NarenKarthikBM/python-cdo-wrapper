@@ -20,10 +20,11 @@ For more information, see:
     - CDO Reference: https://code.mpimet.mpg.de/projects/cdo/
 """
 
+import importlib.util
+
 # v1.0.0+ API
 # Import from legacy parsers.py module (before Phase 2 parsers/ package)
 # We need to explicitly reference the .py file to avoid conflict with parsers/ package
-
 from python_cdo_wrapper.cdo import CDO
 
 # v0.2.x API (legacy)
@@ -81,7 +82,15 @@ from python_cdo_wrapper.types_legacy import (
     GridInfo as GridInfoV1,
 )
 
-__version__ = "1.0.0"
+# Shapefile utilities (optional - requires geopandas)
+_HAS_SHAPEFILE_SUPPORT = importlib.util.find_spec("geopandas") is not None
+
+if _HAS_SHAPEFILE_SUPPORT:
+    from python_cdo_wrapper.shapefile_utils import (
+        create_mask_from_shapefile as create_mask_from_shapefile,
+    )
+
+__version__ = "1.1.0"
 __author__ = "B M Naren Karthik"
 __email__ = "narenkarthikbm@gmail.com"
 
@@ -131,3 +140,7 @@ __all__ = [
     "list_operators",
     "parse_cdo_output",
 ]
+
+# Add shapefile utilities to __all__ if available
+if _HAS_SHAPEFILE_SUPPORT:
+    __all__.append("create_mask_from_shapefile")

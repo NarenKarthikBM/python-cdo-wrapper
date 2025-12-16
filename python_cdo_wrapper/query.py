@@ -26,7 +26,7 @@ if TYPE_CHECKING:
         ZaxisdesResult,
     )
 
-from .exceptions import CDOError, CDOValidationError
+from .exceptions import CDOError, CDOFileNotFoundError, CDOValidationError
 from .operators.base import OperatorSpec
 
 
@@ -66,6 +66,7 @@ class CDOQuery:
     _operators: tuple[OperatorSpec, ...]
     _options: tuple[str, ...]
     _cdo: CDO | None
+    _temp_files: tuple[Path, ...]
 
     def __init__(
         self,
@@ -73,6 +74,7 @@ class CDOQuery:
         operators: tuple[OperatorSpec, ...] = (),
         options: tuple[str, ...] = (),
         cdo_instance: CDO | None = None,
+        temp_files: tuple[Path, ...] = (),
     ):
         """
         Initialize a CDO query.
@@ -82,6 +84,7 @@ class CDOQuery:
             operators: Tuple of operator specs (immutable)
             options: Tuple of global options (immutable)
             cdo_instance: Parent CDO instance for execution
+            temp_files: Tuple of temporary file paths to cleanup (immutable)
 
         Note:
             Use object.__setattr__ for frozen dataclass initialization
@@ -90,13 +93,14 @@ class CDOQuery:
         object.__setattr__(self, "_operators", operators)
         object.__setattr__(self, "_options", options)
         object.__setattr__(self, "_cdo", cdo_instance)
+        object.__setattr__(self, "_temp_files", temp_files)
 
     def _clone(self, **kwargs: Any) -> CDOQuery:
         """
         Create a copy with modifications (immutability pattern).
 
         Args:
-            **kwargs: Attributes to override (input_file, operators, options, cdo_instance)
+            **kwargs: Attributes to override (input_file, operators, options, cdo_instance, temp_files)
 
         Returns:
             New CDOQuery (or subclass) with modifications
@@ -106,6 +110,7 @@ class CDOQuery:
             operators=kwargs.get("operators", self._operators),
             options=kwargs.get("options", self._options),
             cdo_instance=kwargs.get("cdo_instance", self._cdo),
+            temp_files=kwargs.get("temp_files", self._temp_files),
         )
 
     def _add_operator(self, spec: OperatorSpec) -> CDOQuery:
@@ -628,6 +633,116 @@ class CDOQuery:
         # ifthen,mask_file input_file - keeps values where mask != 0
         return self._add_operator(OperatorSpec("ifthen", args=(str(mask_file),)))
 
+    def mask_by_shapefile(
+        self,
+        shapefile_path: str | Path,
+        lat_name: str = "lat",
+        lon_name: str = "lon",
+    ) -> BinaryOpQuery:
+        """
+        Mask data by shapefile polygon extent (complete pipeline).
+
+        This is a high-level operator that encapsulates the complete workflow:
+        1. Load shapefile and extract polygon geometries
+        2. Create binary mask (1=inside, 0=outside) using NumPy point-in-polygon
+        3. Save mask as temporary NetCDF file
+        4. Apply mask using CDO ifthen operator
+        5. Auto-cleanup temporary files after compute()
+
+        Requires: geopandas (install with: pip install python-cdo-wrapper[shapefiles])
+
+        Args:
+            shapefile_path: Path to ESRI shapefile (.shp)
+            lat_name: Latitude coordinate name in NetCDF (default: "lat")
+            lon_name: Longitude coordinate name in NetCDF (default: "lon")
+
+        Returns:
+            BinaryOpQuery with masking applied (ifthen operation)
+
+        Raises:
+            CDOError: If geopandas not installed or input file not set
+            CDOFileNotFoundError: If shapefile doesn't exist
+            CDOValidationError: If coordinates not found
+
+        Example:
+            >>> # Simple usage - mask to shapefile region
+            >>> masked = cdo.query("data.nc").mask_by_shapefile("region.shp").compute()
+            >>>
+            >>> # Chain with other operators
+            >>> result = (
+            ...     cdo.query("data.nc")
+            ...     .mask_by_shapefile("amazon.shp")
+            ...     .year_mean()
+            ...     .compute()
+            ... )
+            >>>
+            >>> # Custom coordinate names
+            >>> masked = cdo.query("data.nc").mask_by_shapefile(
+            ...     "region.shp",
+            ...     lat_name="latitude",
+            ...     lon_name="longitude"
+            ... ).compute()
+
+        Note:
+            - Shapefile CRS is automatically reprojected to WGS84 (EPSG:4326) if needed
+            - Works with both 1D (regular) and 2D (curvilinear) grids
+            - Handles multi-polygon shapefiles
+            - Temporary mask file is automatically cleaned up after compute()
+            - Uses ifthen for masking (sets outside values to NaN)
+        """
+        from .shapefile_utils import create_mask_from_shapefile
+
+        # Validate shapefile exists
+        shapefile_path = Path(shapefile_path)
+        if not shapefile_path.exists():
+            raise CDOFileNotFoundError(
+                message=f"Shapefile not found: {shapefile_path}",
+                file_path=str(shapefile_path),
+            )
+
+        # Check that query has input file
+        if self._input is None:
+            raise CDOError("Query has no input file - cannot create mask")
+
+        # Create mask from shapefile
+        # This happens immediately (not lazily) because we need the mask file
+        mask_ds = create_mask_from_shapefile(
+            shapefile_path=shapefile_path,
+            reference_nc=self._input,
+            lat_name=lat_name,
+            lon_name=lon_name,
+        )
+
+        # Save mask to temporary file (securely)
+        fd, temp_path = tempfile.mkstemp(suffix="_mask.nc")
+        import os
+
+        os.close(fd)  # Close the file descriptor, xarray will handle the file
+        mask_path = Path(temp_path)
+        mask_ds.to_netcdf(mask_path)
+        mask_ds.close()
+
+        # Create mask query (unbound, just references the file)
+        mask_query = CDOQuery._create_unbound(mask_path)
+
+        # Apply mask using ifthen binary operator
+        # CDO syntax: cdo -ifthen mask.nc data.nc output.nc
+        # The mask is the left operand (condition), data is the right operand
+        binary_query = BinaryOpQuery(
+            operator="ifthen",
+            left=mask_query,
+            right=self,
+            cdo_instance=self._cdo,
+        )
+
+        # Store temp file path for cleanup (immutable pattern)
+        # Merge temp files from both operands
+        all_temp_files = (*self._temp_files, mask_path)
+        # Update the binary query's temp files using object.__setattr__ (frozen dataclass pattern)
+        object.__setattr__(binary_query, "_temp_files", all_temp_files)
+
+        return binary_query
+
     # ========== Statistical Operators ==========
 
     def year_mean(self) -> CDOQuery:
@@ -1041,6 +1156,7 @@ class CDOQuery:
         object.__setattr__(query, "_options", ())
         object.__setattr__(query, "_operators", ())
         object.__setattr__(query, "_cdo", None)
+        object.__setattr__(query, "_temp_files", ())
         return query
 
     def add_constant(self, value: float) -> CDOQuery:
@@ -2611,19 +2727,25 @@ class CDOQuery:
 @dataclass(frozen=True)
 class BinaryOpQuery(CDOQuery):
     """
-    Query for binary arithmetic operations using CDO bracket notation.
+    Query for binary arithmetic operations in CDO.
 
-    BinaryOpQuery handles operations between two datasets, generating
-    bracket notation when needed for complex pipelines.
+    BinaryOpQuery handles operations between two datasets. Binary operators
+    (add, sub, mul, div, etc.) always take exactly two inputs, so CDO assigns
+    them unambiguously from right to left without needing brackets.
 
-    Bracket notation (CDO >= 1.9.8):
-        cdo -sub [ -yearmean data.nc ] clim.nc
+    Brackets are only needed for variadic operators (cat, merge, apply) that
+    accept a variable number of inputs.
 
     Example:
         >>> # Anomaly calculation
         >>> anomaly = cdo.query("data.nc").year_mean().sub(F("climatology.nc"))
         >>> print(anomaly.get_command())
-        'cdo -sub [ -yearmean data.nc ] climatology.nc'
+        'cdo -sub -yearmean data.nc climatology.nc'
+
+        >>> # Chained binary operations
+        >>> std_anomaly = cdo.query("data.nc").sub(F("mean.nc")).div(F("std.nc"))
+        >>> print(std_anomaly.get_command())
+        'cdo -div -sub data.nc mean.nc std.nc'
     """
 
     _operator: str  # Binary operator: sub, add, mul, div, max, min
@@ -2659,6 +2781,10 @@ class BinaryOpQuery(CDOQuery):
         object.__setattr__(self, "_input", None)  # Not used for binary ops
         object.__setattr__(self, "_options", ())  # Not used for binary ops
         object.__setattr__(self, "_post_operators", post_operators)
+        # Merge temp files from left and right queries
+        left_temps = getattr(left, "_temp_files", ())
+        right_temps = getattr(right, "_temp_files", ())
+        object.__setattr__(self, "_temp_files", (*left_temps, *right_temps))
 
     def _clone(self, **kwargs: Any) -> BinaryOpQuery:
         """
@@ -2695,13 +2821,17 @@ class BinaryOpQuery(CDOQuery):
 
     def get_command(self, output: str | Path | None = None) -> str:
         """
-        Build CDO command with bracket notation.
+        Build CDO command without brackets (binary operators don't need them).
+
+        Binary operators (add, sub, mul, div, etc.) always take exactly two inputs
+        and CDO assigns them unambiguously from right to left. Brackets are only
+        needed for variadic operators like -cat, -merge, -apply.
 
         Examples:
             - Simple: cdo -sub a.nc b.nc out.nc
-            - Left has ops: cdo -sub [ -yearmean a.nc ] b.nc out.nc
-            - Both have ops: cdo -sub [ -yearmean a.nc ] [ -fldmean b.nc ] out.nc
-            - Chained binary: cdo -div [ -sub data.nc mean.nc ] std.nc out.nc
+            - Left has ops: cdo -sub -yearmean a.nc b.nc out.nc
+            - Both have ops: cdo -sub -yearmean a.nc -fldmean b.nc out.nc
+            - Chained binary: cdo -div -sub data.nc mean.nc std.nc out.nc
             - With post_operators: cdo -sqrt -abs -sub a.nc b.nc out.nc
         """
         # Special handling for ifthenelse which has 3 operands
@@ -2751,19 +2881,20 @@ class BinaryOpQuery(CDOQuery):
 
     def _get_operand_fragment(self, query: CDOQuery) -> str:
         """
-        Get command fragment for an operand.
+        Get command fragment for an operand without brackets.
 
-        Uses bracket notation if query has operators or is a nested BinaryOpQuery.
+        Binary operators don't need brackets because they always take exactly
+        two inputs. CDO assigns them unambiguously from right to left.
 
         Args:
             query: Operand query (CDOQuery or BinaryOpQuery)
 
         Returns:
-            Command fragment (e.g., "[ -sub -yearmean data.nc a.nc ]" or "-timmean data.nc")
+            Command fragment (e.g., "-sub -yearmean data.nc a.nc" or "-timmean data.nc")
         """
         # Handle nested BinaryOpQuery (chained binary operations)
         if isinstance(query, BinaryOpQuery):
-            # Get the inner binary operation command without 'cdo ' prefix
+            # Get the inner binary operation command recursively
             inner_left = self._get_operand_fragment(query._left)
             inner_right = self._get_operand_fragment(query._right)
             binary_part = f"-{query._operator} {inner_left} {inner_right}"
@@ -2773,13 +2904,14 @@ class BinaryOpQuery(CDOQuery):
                 post_ops = " ".join(
                     op.to_cdo_fragment() for op in reversed(query._post_operators)
                 )
-                return f"[ {post_ops} {binary_part} ]"
-            return f"[ {binary_part} ]"
+                return f"{post_ops} {binary_part}"
+            return binary_part
 
         if not query._operators:
             # Simple file reference
             return str(query._input)
 
+        # Query with operators: just chain them
         ops = " ".join(op.to_cdo_fragment() for op in reversed(query._operators))
         return f"{ops} {query._input}"
 
