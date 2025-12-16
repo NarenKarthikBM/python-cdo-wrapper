@@ -10,7 +10,7 @@ from __future__ import annotations
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     import xarray as xr
@@ -2247,7 +2247,7 @@ class CDOQuery:
             return self._cdo.showname(self._input)
         else:
             # Has operators - execute pipeline first
-            return self._execute_info_with_pipeline("showname")
+            return cast("list[str]", self._execute_info_with_pipeline("showname"))
 
     def showcode(self) -> list[int]:
         """
@@ -2269,7 +2269,7 @@ class CDOQuery:
         if not self._operators:
             return self._cdo.showcode(self._input)
         else:
-            return self._execute_info_with_pipeline("showcode")
+            return cast("list[int]", self._execute_info_with_pipeline("showcode"))
 
     def showunit(self) -> list[str]:
         """
@@ -2291,7 +2291,7 @@ class CDOQuery:
         if not self._operators:
             return self._cdo.showunit(self._input)
         else:
-            return self._execute_info_with_pipeline("showunit")
+            return cast("list[str]", self._execute_info_with_pipeline("showunit"))
 
     def showlevel(self) -> list[float]:
         """
@@ -2313,7 +2313,7 @@ class CDOQuery:
         if not self._operators:
             return self._cdo.showlevel(self._input)
         else:
-            return self._execute_info_with_pipeline("showlevel")
+            return cast("list[float]", self._execute_info_with_pipeline("showlevel"))
 
     def showdate(self) -> list[str]:
         """
@@ -2335,7 +2335,7 @@ class CDOQuery:
         if not self._operators:
             return self._cdo.showdate(self._input)
         else:
-            return self._execute_info_with_pipeline("showdate")
+            return cast("list[str]", self._execute_info_with_pipeline("showdate"))
 
     def showtime(self) -> list[str]:
         """
@@ -2357,7 +2357,7 @@ class CDOQuery:
         if not self._operators:
             return self._cdo.showtime(self._input)
         else:
-            return self._execute_info_with_pipeline("showtime")
+            return cast("list[str]", self._execute_info_with_pipeline("showtime"))
 
     def ntime(self) -> int:
         """
@@ -2409,7 +2409,7 @@ class CDOQuery:
         if not self._operators:
             return self._cdo.nvar(self._input)
         else:
-            return self._execute_info_with_pipeline("nvar")
+            return cast("int", self._execute_info_with_pipeline("nvar"))
 
     def nlevel(self) -> int:
         """
@@ -2436,7 +2436,7 @@ class CDOQuery:
         if not self._operators:
             return self._cdo.nlevel(self._input)
         else:
-            return self._execute_info_with_pipeline("nlevel")
+            return cast("int", self._execute_info_with_pipeline("nlevel"))
 
     def sinfo(self) -> SinfoResult:
         """
@@ -2472,7 +2472,7 @@ class CDOQuery:
         if not self._operators:
             return self._cdo.sinfo(self._input)
         else:
-            return self._execute_info_with_pipeline("sinfo")
+            return cast("SinfoResult", self._execute_info_with_pipeline("sinfo"))
 
     def info(self) -> InfoResult:
         """
@@ -2497,7 +2497,7 @@ class CDOQuery:
         if not self._operators:
             return self._cdo.info(self._input)
         else:
-            return self._execute_info_with_pipeline("info")
+            return cast("InfoResult", self._execute_info_with_pipeline("info"))
 
     def griddes(self) -> GriddesResult:
         """
@@ -2527,7 +2527,7 @@ class CDOQuery:
         if not self._operators:
             return self._cdo.griddes(self._input)
         else:
-            return self._execute_info_with_pipeline("griddes")
+            return cast("GriddesResult", self._execute_info_with_pipeline("griddes"))
 
     def zaxisdes(self) -> ZaxisdesResult:
         """
@@ -2552,7 +2552,7 @@ class CDOQuery:
         if not self._operators:
             return self._cdo.zaxisdes(self._input)
         else:
-            return self._execute_info_with_pipeline("zaxisdes")
+            return cast("ZaxisdesResult", self._execute_info_with_pipeline("zaxisdes"))
 
     def vlist(self) -> VlistResult:
         """
@@ -2580,7 +2580,7 @@ class CDOQuery:
         if not self._operators:
             return self._cdo.vlist(self._input)
         else:
-            return self._execute_info_with_pipeline("vlist")
+            return cast("VlistResult", self._execute_info_with_pipeline("vlist"))
 
     def partab(self) -> PartabResult:
         """
@@ -2605,7 +2605,7 @@ class CDOQuery:
         if not self._operators:
             return self._cdo.partab(self._input)
         else:
-            return self._execute_info_with_pipeline("partab")
+            return cast("PartabResult", self._execute_info_with_pipeline("partab"))
 
 
 @dataclass(frozen=True)
