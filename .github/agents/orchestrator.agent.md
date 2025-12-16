@@ -1,6 +1,6 @@
 ---
 description: 'Orchestrator agent that routes tasks to specialized agents and coordinates multi-agent workflows'
-tools: ['execute/testFailure', 'read/problems', 'read/readFile', 'agent', 'edit', 'search', 'web']
+tools: ['execute/runTests', 'execute/testFailure', 'read/problems', 'read/readFile', 'agent', 'edit', 'search', 'web']
 ---
 
 # Orchestrator Agent

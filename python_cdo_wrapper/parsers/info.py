@@ -75,6 +75,7 @@ class SinfoParser(CDOParser[SinfoResult]):
         """Parse variable table."""
         variables: list[DatasetVariable] = []
 
+        print(output)
         # Find variable section (between header and "Grid coordinates")
         var_section = re.search(
             r"-1 : Institut Source.*?(?=Grid coordinates|$)", output, re.DOTALL
@@ -99,10 +100,10 @@ class SinfoParser(CDOParser[SinfoResult]):
                 var_id = int(parts[0].strip())
                 fields = parts[1].strip().split()
 
-                # Parse param_id and optional variable name from third part
-                param_fields = parts[2].strip().split()
-                param_id = int(param_fields[0])
-                var_name = param_fields[1] if len(param_fields) > 1 else None
+                # Parse param_id from third part (sinfo output does NOT include variable names)
+                # Format: "param_id" only (e.g., "167")
+                param_id_str = parts[2].strip()
+                param_id = int(param_id_str) if param_id_str else -1
 
                 if len(fields) >= 9:
                     variables.append(
@@ -118,7 +119,7 @@ class SinfoParser(CDOParser[SinfoResult]):
                             num2=int(fields[7]),
                             dtype=fields[8],
                             param_id=param_id,
-                            name=var_name,
+                            name=None,  # sinfo doesn't provide variable names
                         )
                     )
             except (ValueError, IndexError):

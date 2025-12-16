@@ -66,28 +66,59 @@ def sample_nc_file(tmp_path: Path) -> Path:
 
     ds = xr.Dataset(
         {
-            "temperature": (
+            "tas": (  # Changed from "temperature" to standard CF name "tas"
                 ["time", "lat", "lon"],
                 temp,
                 {
                     "units": "K",
-                    "long_name": "Temperature",
+                    "long_name": "Near-Surface Air Temperature",
+                    "standard_name": "air_temperature",
+                    "code": 167,  # GRIB parameter code for 2m temperature
                 },
             ),
         },
         coords={
-            "time": times,
-            "lat": lats,
-            "lon": lons,
+            "time": ("time", times, {"axis": "T", "standard_name": "time"}),
+            "lat": (
+                "lat",
+                lats,
+                {
+                    "axis": "Y",
+                    "units": "degrees_north",
+                    "standard_name": "latitude",
+                },
+            ),
+            "lon": (
+                "lon",
+                lons,
+                {
+                    "axis": "X",
+                    "units": "degrees_east",
+                    "standard_name": "longitude",
+                },
+            ),
         },
         attrs={
             "title": "Test dataset",
             "history": "Created by pytest",
+            "Conventions": "CF-1.8",
         },
     )
 
+    # Define encoding for proper CDO compatibility
+    encoding = {
+        "tas": {
+            "dtype": "float32",
+            "zlib": False,
+            "_FillValue": None,
+        },
+        "time": {"dtype": "float64"},
+        "lat": {"dtype": "float32"},
+        "lon": {"dtype": "float32"},
+    }
+
     filepath = tmp_path / "test_data.nc"
-    ds.to_netcdf(filepath)
+    ds.to_netcdf(filepath, format="NETCDF4_CLASSIC", encoding=encoding)
 
     return filepath
 
@@ -117,24 +148,58 @@ def sample_nc_file_with_time(tmp_path: Path) -> Path:
 
     ds = xr.Dataset(
         {
-            "temperature": (
+            "tas": (  # Changed from "temperature" to standard CF name "tas"
                 ["time", "lat", "lon"],
                 temp,
                 {
                     "units": "K",
-                    "long_name": "Temperature",
+                    "long_name": "Near-Surface Air Temperature",
+                    "standard_name": "air_temperature",
+                    "code": 167,  # GRIB parameter code for 2m temperature
                 },
             ),
         },
         coords={
-            "time": times,
-            "lat": ("lat", lats, {"units": "degrees_north"}),
-            "lon": ("lon", lons, {"units": "degrees_east"}),
+            "time": ("time", times, {"axis": "T", "standard_name": "time"}),
+            "lat": (
+                "lat",
+                lats,
+                {
+                    "axis": "Y",
+                    "units": "degrees_north",
+                    "standard_name": "latitude",
+                },
+            ),
+            "lon": (
+                "lon",
+                lons,
+                {
+                    "axis": "X",
+                    "units": "degrees_east",
+                    "standard_name": "longitude",
+                },
+            ),
+        },
+        attrs={
+            "title": "Test dataset with time",
+            "Conventions": "CF-1.8",
         },
     )
 
+    # Define encoding for proper CDO compatibility
+    encoding = {
+        "tas": {
+            "dtype": "float32",
+            "zlib": False,
+            "_FillValue": None,
+        },
+        "time": {"dtype": "float64", "units": "days since 1850-01-01"},
+        "lat": {"dtype": "float32"},
+        "lon": {"dtype": "float32"},
+    }
+
     filepath = tmp_path / "test_data_time.nc"
-    ds.to_netcdf(filepath)
+    ds.to_netcdf(filepath, format="NETCDF4_CLASSIC", encoding=encoding)
 
     return filepath
 
@@ -229,6 +294,7 @@ def multi_var_nc_file(tmp_path: Path) -> Path:
                     "units": "K",
                     "long_name": "Near-Surface Air Temperature",
                     "standard_name": "air_temperature",
+                    "code": 167,  # GRIB parameter code for 2m temperature
                 },
             ),
             "pr": (
@@ -238,6 +304,7 @@ def multi_var_nc_file(tmp_path: Path) -> Path:
                     "units": "mm day-1",
                     "long_name": "Precipitation",
                     "standard_name": "precipitation_flux",
+                    "code": 228,  # GRIB parameter code for precipitation
                 },
             ),
             "psl": (
@@ -247,20 +314,29 @@ def multi_var_nc_file(tmp_path: Path) -> Path:
                     "units": "Pa",
                     "long_name": "Sea Level Pressure",
                     "standard_name": "air_pressure_at_mean_sea_level",
+                    "code": 151,  # GRIB parameter code for pressure
                 },
             ),
         },
         coords={
-            "time": times,
+            "time": ("time", times, {"axis": "T", "standard_name": "time"}),
             "lat": (
                 "lat",
                 lats,
-                {"units": "degrees_north", "standard_name": "latitude"},
+                {
+                    "axis": "Y",
+                    "units": "degrees_north",
+                    "standard_name": "latitude",
+                },
             ),
             "lon": (
                 "lon",
                 lons,
-                {"units": "degrees_east", "standard_name": "longitude"},
+                {
+                    "axis": "X",
+                    "units": "degrees_east",
+                    "standard_name": "longitude",
+                },
             ),
         },
         attrs={
@@ -271,8 +347,30 @@ def multi_var_nc_file(tmp_path: Path) -> Path:
         },
     )
 
+    # Define encoding for proper CDO compatibility
+    encoding = {
+        "tas": {
+            "dtype": "float32",
+            "zlib": False,
+            "_FillValue": None,
+        },
+        "pr": {
+            "dtype": "float32",
+            "zlib": False,
+            "_FillValue": None,
+        },
+        "psl": {
+            "dtype": "float32",
+            "zlib": False,
+            "_FillValue": None,
+        },
+        "time": {"dtype": "float64", "units": "days since 1850-01-01"},
+        "lat": {"dtype": "float32"},
+        "lon": {"dtype": "float32"},
+    }
+
     filepath = tmp_path / "test_multi_var.nc"
-    ds.to_netcdf(filepath)
+    ds.to_netcdf(filepath, format="NETCDF4_CLASSIC", encoding=encoding)
 
     return filepath
 

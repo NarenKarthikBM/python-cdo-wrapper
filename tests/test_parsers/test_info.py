@@ -84,6 +84,10 @@ class TestSinfoParser:
         assert var.points == 17415
         assert var.dtype == "F32"
         assert var.param_id == -1
+        assert var.name is None  # sinfo doesn't provide variable names
+        assert (
+            result.var_names == []
+        )  # Should return empty list when no names available
 
     def test_parse_grid_coordinates(self):
         """Test parsing grid coordinates."""

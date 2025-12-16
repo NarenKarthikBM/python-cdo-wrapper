@@ -301,7 +301,7 @@ class TestCDOFunctionIntegration:
         result = cdo(f"showname {sample_nc_file}")
 
         assert isinstance(result, str)
-        assert "temperature" in result
+        assert "tas" in result
 
     @pytest.mark.integration
     def test_cdo_nvar_real(self, sample_nc_file: Path):
@@ -320,7 +320,7 @@ class TestCDOFunctionIntegration:
         import xarray as xr
 
         assert isinstance(ds, xr.Dataset)
-        assert "temperature" in ds.data_vars
+        assert "tas" in ds.data_vars
 
     @pytest.mark.integration
     def test_cdo_invalid_command_raises(self, sample_nc_file: Path):

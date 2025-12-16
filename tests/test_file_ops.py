@@ -43,7 +43,7 @@ class TestCDOFileOperations:
         out = tmp_path / "copy.nc"
         ds = cdo.copy(sample_nc_file, output=out)
         assert out.exists()
-        assert "temperature" in ds.data_vars
+        assert "tas" in ds.data_vars
 
 
 @pytest.mark.integration

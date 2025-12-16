@@ -191,7 +191,9 @@ class TestInfoOperatorsQuery:
 
         assert isinstance(result, SinfoResult)
         assert result.nvar > 0
-        assert len(result.var_names) > 0
+        # sinfo doesn't provide variable names, only parameter IDs
+        assert len(result.variables) > 0
+        assert result.variables[0].param_id == 167  # Check parameter ID instead
 
     def test_sinfo_with_operators(self, multi_var_nc_file):
         """Test sinfo() on query with operators."""
@@ -201,7 +203,11 @@ class TestInfoOperatorsQuery:
         result = cdo.query(multi_var_nc_file).select_var("tas").sinfo()
 
         assert isinstance(result, SinfoResult)
-        assert "tas" in result.var_names
+        # After selecting 'tas', should have 1 variable
+        assert result.nvar == 1
+        assert len(result.variables) == 1
+        # Check parameter ID (tas has code 167)
+        assert result.variables[0].param_id == 167
 
     def test_info_without_operators(self, sample_nc_file):
         """Test info() on query without operators."""
