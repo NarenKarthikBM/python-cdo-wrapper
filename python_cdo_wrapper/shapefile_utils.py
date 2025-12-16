@@ -145,6 +145,8 @@ def create_mask_from_shapefile(
         raise CDOError(f"Failed to process geometries: {e}") from e
 
     # Perform point-in-polygon tests
+    # Note: This nested loop can be slow for large grids (e.g., global 0.5° = ~260k points).
+    # For better performance on very large grids, consider pre-creating and reusing masks.
     for i in range(lat_2d.shape[0]):
         for j in range(lat_2d.shape[1]):
             point = shapely.geometry.Point(lon_2d[i, j], lat_2d[i, j])

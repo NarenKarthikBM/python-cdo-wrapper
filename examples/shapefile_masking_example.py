@@ -10,7 +10,7 @@ Requirements:
 This installs geopandas and shapely for shapefile handling.
 """
 
-from python_cdo_wrapper import CDO
+from python_cdo_wrapper import CDO, create_mask_from_shapefile
 
 # Initialize CDO
 cdo = CDO()
@@ -78,7 +78,7 @@ print(f"Saved masked data to: {output_path}")
 # Example 6: Advanced - Create mask separately
 # ============================================================
 # For advanced users: create mask file separately for reuse
-from python_cdo_wrapper import create_mask_from_shapefile
+# Note: create_mask_from_shapefile was imported at the top
 
 # Create mask dataset
 mask_ds = create_mask_from_shapefile(

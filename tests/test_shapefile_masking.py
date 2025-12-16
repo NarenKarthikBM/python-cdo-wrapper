@@ -251,8 +251,30 @@ class TestMaskByShapefileOperator:
         # Check that some values are not NaN (inside polygon)
         assert (~np.isnan(result["tas"].values)).any()
 
-        # Temp files should be cleaned up automatically
-        # (we can't easily test this without access to the temp file paths)
+    @pytest.mark.integration
+    def test_mask_by_shapefile_temp_file_cleanup(
+        self, sample_shapefile, sample_nc_for_masking
+    ):
+        """Test that temporary mask files are cleaned up after execution."""
+        cdo = CDO()
+
+        # Create query and capture temp file path
+        query = cdo.query(sample_nc_for_masking).mask_by_shapefile(sample_shapefile)
+
+        # Verify temp file was created and tracked
+        assert hasattr(query, "_temp_files")
+        assert len(query._temp_files) == 1
+        temp_file = query._temp_files[0]
+        assert temp_file.exists(), "Temp file should exist after mask creation"
+
+        # Execute the query
+        result = query.compute()
+
+        # Verify result is valid
+        assert isinstance(result, xr.Dataset)
+
+        # Verify temp file was cleaned up
+        assert not temp_file.exists(), "Temp file should be deleted after compute()"
 
     @pytest.mark.integration
     def test_mask_by_shapefile_chaining(self, sample_shapefile, sample_nc_for_masking):

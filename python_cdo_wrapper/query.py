@@ -713,8 +713,12 @@ class CDOQuery:
             lon_name=lon_name,
         )
 
-        # Save mask to temporary file
-        mask_path = Path(tempfile.mktemp(suffix="_mask.nc"))
+        # Save mask to temporary file (securely)
+        fd, temp_path = tempfile.mkstemp(suffix="_mask.nc")
+        import os
+
+        os.close(fd)  # Close the file descriptor, xarray will handle the file
+        mask_path = Path(temp_path)
         mask_ds.to_netcdf(mask_path)
         mask_ds.close()
 
