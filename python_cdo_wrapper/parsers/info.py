@@ -75,6 +75,7 @@ class SinfoParser(CDOParser[SinfoResult]):
         """Parse variable table."""
         variables: list[DatasetVariable] = []
 
+        print(output)
         # Find variable section (between header and "Grid coordinates")
         var_section = re.search(
             r"-1 : Institut Source.*?(?=Grid coordinates|$)", output, re.DOTALL
@@ -98,7 +99,11 @@ class SinfoParser(CDOParser[SinfoResult]):
             try:
                 var_id = int(parts[0].strip())
                 fields = parts[1].strip().split()
-                param_id = int(parts[2].strip())
+
+                # Parse param_id from third part (sinfo output does NOT include variable names)
+                # Format: "param_id" only (e.g., "167")
+                param_id_str = parts[2].strip()
+                param_id = int(param_id_str) if param_id_str else -1
 
                 if len(fields) >= 9:
                     variables.append(
@@ -114,6 +119,7 @@ class SinfoParser(CDOParser[SinfoResult]):
                             num2=int(fields[7]),
                             dtype=fields[8],
                             param_id=param_id,
+                            name=None,  # sinfo doesn't provide variable names
                         )
                     )
             except (ValueError, IndexError):
@@ -590,7 +596,7 @@ class PartabParser(CDOParser[PartabResult]):
                 r'code\s*=\s*["\']?([^"\',\n]+)["\']?', block, re.IGNORECASE
             )
             name_match = re.search(
-                r'name\s*=\s*["\']([^"\']+)["\']', block, re.IGNORECASE
+                r'name\s*=\s*["\']?([^"\',\n]+?)["\']?(?:\s|$)', block, re.IGNORECASE
             )
             units_match = re.search(
                 r'units\s*=\s*["\']([^"\']+)["\']', block, re.IGNORECASE
@@ -599,9 +605,10 @@ class PartabParser(CDOParser[PartabResult]):
                 r'long_name\s*=\s*["\']([^"\']+)["\']', block, re.IGNORECASE
             )
 
-            if code_match and name_match:
-                code = code_match.group(1).strip()
+            if name_match:
                 name = name_match.group(1).strip()
+                # Use code if available, otherwise use name as code
+                code = code_match.group(1).strip() if code_match else name
                 units = units_match.group(1).strip() if units_match else None
                 longname = longname_match.group(1).strip() if longname_match else None
 

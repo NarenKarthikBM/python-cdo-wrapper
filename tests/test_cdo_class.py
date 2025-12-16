@@ -190,7 +190,7 @@ class TestCDOExecuteDataCommand:
         )
 
         assert result is not None
-        assert "temperature" in result.data_vars
+        assert "tas" in result.data_vars
         assert temp_output_file.exists()
 
     @pytest.mark.integration
@@ -200,7 +200,7 @@ class TestCDOExecuteDataCommand:
         result = cdo._execute_data_command(f"copy {sample_nc_file}")
 
         assert result is not None
-        assert "temperature" in result.data_vars
+        assert "tas" in result.data_vars
 
     def test_execute_data_command_failure(self):
         """Test that failed data command raises CDOExecutionError."""
