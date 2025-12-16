@@ -77,6 +77,10 @@ test = [
     "pytest-cov>=4.0.0",
     "netCDF4>=1.6.0",
 ]
+shapefiles = [
+    "geopandas>=0.10.0",
+    "shapely>=2.0.0",
+]
 
 [project.urls]
 "Bug Tracker" = "https://github.com/NarenKarthikBM/python-cdo-wrapper/issues"

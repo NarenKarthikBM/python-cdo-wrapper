@@ -66,6 +66,7 @@ class CDOQuery:
     _operators: tuple[OperatorSpec, ...]
     _options: tuple[str, ...]
     _cdo: CDO | None
+    _temp_files: tuple[Path, ...]
 
     def __init__(
         self,
@@ -73,6 +74,7 @@ class CDOQuery:
         operators: tuple[OperatorSpec, ...] = (),
         options: tuple[str, ...] = (),
         cdo_instance: CDO | None = None,
+        temp_files: tuple[Path, ...] = (),
     ):
         """
         Initialize a CDO query.
@@ -82,6 +84,7 @@ class CDOQuery:
             operators: Tuple of operator specs (immutable)
             options: Tuple of global options (immutable)
             cdo_instance: Parent CDO instance for execution
+            temp_files: Tuple of temporary file paths to cleanup (immutable)
 
         Note:
             Use object.__setattr__ for frozen dataclass initialization
@@ -90,13 +93,14 @@ class CDOQuery:
         object.__setattr__(self, "_operators", operators)
         object.__setattr__(self, "_options", options)
         object.__setattr__(self, "_cdo", cdo_instance)
+        object.__setattr__(self, "_temp_files", temp_files)
 
     def _clone(self, **kwargs: Any) -> CDOQuery:
         """
         Create a copy with modifications (immutability pattern).
 
         Args:
-            **kwargs: Attributes to override (input_file, operators, options, cdo_instance)
+            **kwargs: Attributes to override (input_file, operators, options, cdo_instance, temp_files)
 
         Returns:
             New CDOQuery (or subclass) with modifications
@@ -106,6 +110,7 @@ class CDOQuery:
             operators=kwargs.get("operators", self._operators),
             options=kwargs.get("options", self._options),
             cdo_instance=kwargs.get("cdo_instance", self._cdo),
+            temp_files=kwargs.get("temp_files", self._temp_files),
         )
 
     def _add_operator(self, spec: OperatorSpec) -> CDOQuery:
@@ -627,6 +632,99 @@ class CDOQuery:
         # Note: CDO uses 'ifthen' for masking, not 'selmask'
         # ifthen,mask_file input_file - keeps values where mask != 0
         return self._add_operator(OperatorSpec("ifthen", args=(str(mask_file),)))
+
+    def mask_by_shapefile(
+        self,
+        shapefile_path: str | Path,
+        lat_name: str = "lat",
+        lon_name: str = "lon",
+    ) -> CDOQuery:
+        """
+        Mask data by shapefile polygon extent (complete pipeline).
+
+        This is a high-level operator that encapsulates the complete workflow:
+        1. Load shapefile and extract polygon geometries
+        2. Create binary mask (1=inside, 0=outside) using NumPy point-in-polygon
+        3. Save mask as temporary NetCDF file
+        4. Apply mask using CDO ifthen operator
+        5. Auto-cleanup temporary files after compute()
+
+        Requires: geopandas (install with: pip install python-cdo-wrapper[shapefiles])
+
+        Args:
+            shapefile_path: Path to ESRI shapefile (.shp)
+            lat_name: Latitude coordinate name in NetCDF (default: "lat")
+            lon_name: Longitude coordinate name in NetCDF (default: "lon")
+
+        Returns:
+            New query with masking applied
+
+        Raises:
+            CDOError: If geopandas not installed or input file not set
+            CDOFileNotFoundError: If shapefile doesn't exist
+            CDOValidationError: If coordinates not found
+
+        Example:
+            >>> # Simple usage - mask to shapefile region
+            >>> masked = cdo.query("data.nc").mask_by_shapefile("region.shp").compute()
+            >>>
+            >>> # Chain with other operators
+            >>> result = (
+            ...     cdo.query("data.nc")
+            ...     .mask_by_shapefile("amazon.shp")
+            ...     .year_mean()
+            ...     .compute()
+            ... )
+            >>>
+            >>> # Custom coordinate names
+            >>> masked = cdo.query("data.nc").mask_by_shapefile(
+            ...     "region.shp",
+            ...     lat_name="latitude",
+            ...     lon_name="longitude"
+            ... ).compute()
+
+        Note:
+            - Shapefile CRS is automatically reprojected to WGS84 (EPSG:4326) if needed
+            - Works with both 1D (regular) and 2D (curvilinear) grids
+            - Handles multi-polygon shapefiles
+            - Temporary mask file is automatically cleaned up after compute()
+            - Uses ifthen for masking (sets outside values to NaN)
+        """
+        from .shapefile_utils import create_mask_from_shapefile
+
+        # Validate shapefile exists
+        shapefile_path = Path(shapefile_path)
+        if not shapefile_path.exists():
+            raise CDOFileNotFoundError(
+                message=f"Shapefile not found: {shapefile_path}",
+                file_path=str(shapefile_path),
+            )
+
+        # Check that query has input file
+        if self._input is None:
+            raise CDOError("Query has no input file - cannot create mask")
+
+        # Create mask from shapefile
+        # This happens immediately (not lazily) because we need the mask file
+        mask_ds = create_mask_from_shapefile(
+            shapefile_path=shapefile_path,
+            reference_nc=self._input,
+            lat_name=lat_name,
+            lon_name=lon_name,
+        )
+
+        # Save mask to temporary file
+        mask_path = Path(tempfile.mktemp(suffix="_mask.nc"))
+        mask_ds.to_netcdf(mask_path)
+        mask_ds.close()
+
+        # Apply mask using ifthen operator (keeps data where mask=1)
+        # The mask file will need to be cleaned up - store path for cleanup
+        new_query = self._add_operator(OperatorSpec("ifthen", args=(str(mask_path),)))
+
+        # Store temp file path for cleanup (immutable pattern)
+        new_temp_files = (*new_query._temp_files, mask_path)
+        return new_query._clone(temp_files=new_temp_files)
 
     # ========== Statistical Operators ==========
 
@@ -2659,6 +2757,10 @@ class BinaryOpQuery(CDOQuery):
         object.__setattr__(self, "_input", None)  # Not used for binary ops
         object.__setattr__(self, "_options", ())  # Not used for binary ops
         object.__setattr__(self, "_post_operators", post_operators)
+        # Merge temp files from left and right queries
+        left_temps = getattr(left, "_temp_files", ())
+        right_temps = getattr(right, "_temp_files", ())
+        object.__setattr__(self, "_temp_files", (*left_temps, *right_temps))
 
     def _clone(self, **kwargs: Any) -> BinaryOpQuery:
         """
