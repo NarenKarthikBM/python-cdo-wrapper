@@ -61,8 +61,11 @@ from python_cdo_wrapper.parsers_legacy import (
 from python_cdo_wrapper.query import BinaryOpQuery, CDOQuery, CDOQueryTemplate, F
 
 # Shapefile utilities (optional - requires geopandas)
+_HAS_SHAPEFILE_SUPPORT = False
 try:
     from python_cdo_wrapper.shapefile_utils import create_mask_from_shapefile
+
+    _HAS_SHAPEFILE_SUPPORT = True
 except ImportError:
     # geopandas not installed - shapefile masking not available
     pass
@@ -134,9 +137,12 @@ __all__ = [
     "ZaxisdesResult",
     "__version__",
     "cdo",
-    "create_mask_from_shapefile",
     "get_cdo_version",
     "get_supported_structured_commands",
     "list_operators",
     "parse_cdo_output",
 ]
+
+# Add shapefile utilities to __all__ if available
+if _HAS_SHAPEFILE_SUPPORT:
+    __all__.append("create_mask_from_shapefile")

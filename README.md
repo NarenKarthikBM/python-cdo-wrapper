@@ -339,6 +339,65 @@ celsius = (
 )
 ```
 
+#### Shapefile Masking
+
+Clip NetCDF data to shapefile polygon extents in a single chainable method.
+
+**Installation with shapefile support:**
+```bash
+pip install python-cdo-wrapper[shapefiles]
+```
+
+**Basic usage:**
+```python
+from python_cdo_wrapper import CDO
+
+cdo = CDO()
+
+# Mask to a region
+regional_data = cdo.query("global_temperature.nc").mask_by_shapefile(
+    "amazon_basin.shp"
+).compute()
+
+# Chain with other operators
+yearly_regional = (
+    cdo.query("daily_data.nc")
+    .mask_by_shapefile("west_africa.shp")
+    .year_mean()
+    .field_mean()
+    .compute()
+)
+
+# Custom coordinate names
+masked = cdo.query("data.nc").mask_by_shapefile(
+    "region.shp",
+    lat_name="latitude",
+    lon_name="longitude"
+).compute()
+```
+
+**Features:**
+- Complete automated pipeline: load shapefile → create mask → apply → cleanup
+- Supports 1D (regular) and 2D (curvilinear) grids
+- Automatic CRS reprojection to WGS84 if needed
+- Multi-polygon shapefile support
+- Temporary files automatically cleaned up
+
+**Advanced usage - reusable masks:**
+```python
+from python_cdo_wrapper import create_mask_from_shapefile
+
+# Create and save mask for reuse
+mask_ds = create_mask_from_shapefile(
+    shapefile_path="region.shp",
+    reference_nc="data.nc"
+)
+mask_ds.to_netcdf("region_mask.nc")
+
+# Reuse saved mask
+masked = cdo.query("data.nc").select_mask("region_mask.nc").compute()
+```
+
 #### Structured Info Commands (v1.0.0)
 
 ```python
@@ -478,6 +537,7 @@ All operators are implemented as **query methods first**, with optional convenie
 | `.select_region(lon1, lon2, lat1, lat2)` | `-sellonlatbox` | Select lon/lat box |
 | `.select_index_box(x1, x2, y1, y2)` | `-selindexbox` | Select index box |
 | `.select_mask(mask_file)` | `-ifthen` | Apply mask file |
+| `.mask_by_shapefile(shp, lat, lon)` | `-ifthen` | Mask by shapefile polygon (requires `[shapefiles]` extra) |
 | `.select_grid(grid_num)` | `-selgrid` | Select grid number |
 | `.select_zaxis(zaxis_num)` | `-selzaxis` | Select z-axis number |
 
