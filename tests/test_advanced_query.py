@@ -232,7 +232,7 @@ class TestInfoOperatorsQuery:
         result = cdo.query(sample_nc_file).zaxisdes()
 
         assert isinstance(result, ZaxisdesResult)
-        assert len(result.axes) > 0
+        assert len(result.zaxes) > 0
 
     def test_vlist_without_operators(self, sample_nc_file):
         """Test vlist() on query without operators."""

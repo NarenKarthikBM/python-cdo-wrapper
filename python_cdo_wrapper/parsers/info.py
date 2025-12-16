@@ -98,7 +98,11 @@ class SinfoParser(CDOParser[SinfoResult]):
             try:
                 var_id = int(parts[0].strip())
                 fields = parts[1].strip().split()
-                param_id = int(parts[2].strip())
+
+                # Parse param_id and optional variable name from third part
+                param_fields = parts[2].strip().split()
+                param_id = int(param_fields[0])
+                var_name = param_fields[1] if len(param_fields) > 1 else None
 
                 if len(fields) >= 9:
                     variables.append(
@@ -114,6 +118,7 @@ class SinfoParser(CDOParser[SinfoResult]):
                             num2=int(fields[7]),
                             dtype=fields[8],
                             param_id=param_id,
+                            name=var_name,
                         )
                     )
             except (ValueError, IndexError):
@@ -590,7 +595,7 @@ class PartabParser(CDOParser[PartabResult]):
                 r'code\s*=\s*["\']?([^"\',\n]+)["\']?', block, re.IGNORECASE
             )
             name_match = re.search(
-                r'name\s*=\s*["\']([^"\']+)["\']', block, re.IGNORECASE
+                r'name\s*=\s*["\']?([^"\',\n]+?)["\']?(?:\s|$)', block, re.IGNORECASE
             )
             units_match = re.search(
                 r'units\s*=\s*["\']([^"\']+)["\']', block, re.IGNORECASE
@@ -599,9 +604,10 @@ class PartabParser(CDOParser[PartabResult]):
                 r'long_name\s*=\s*["\']([^"\']+)["\']', block, re.IGNORECASE
             )
 
-            if code_match and name_match:
-                code = code_match.group(1).strip()
+            if name_match:
                 name = name_match.group(1).strip()
+                # Use code if available, otherwise use name as code
+                code = code_match.group(1).strip() if code_match else name
                 units = units_match.group(1).strip() if units_match else None
                 longname = longname_match.group(1).strip() if longname_match else None
 

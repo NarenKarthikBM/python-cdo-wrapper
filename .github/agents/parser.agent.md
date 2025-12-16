@@ -1,6 +1,6 @@
 ---
 description: 'Specialized agent for CDO output parsing and result type creation'
-tools: ['edit/createFile', 'edit/createDirectory', 'edit/editFiles', 'search/fileSearch', 'search/textSearch', 'search/listDirectory', 'search/readFile', 'search/codebase', 'problems', 'changes', 'testFailure', 'githubRepo', 'todos']
+tools: ['execute/testFailure', 'read/problems', 'read/readFile', 'edit', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'web', 'todo']
 ---
 
 # Parser Agent
