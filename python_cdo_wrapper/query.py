@@ -26,7 +26,7 @@ if TYPE_CHECKING:
         ZaxisdesResult,
     )
 
-from .exceptions import CDOError, CDOValidationError
+from .exceptions import CDOError, CDOFileNotFoundError, CDOValidationError
 from .operators.base import OperatorSpec
 
 

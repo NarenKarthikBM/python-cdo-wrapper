@@ -211,12 +211,12 @@ class CDO:
 
             # Clean up query temp files (e.g., shapefile masks)
             if hasattr(query, "_temp_files"):
+                import contextlib
+
                 for temp_file in query._temp_files:
                     if temp_file and temp_file.exists():
-                        try:
+                        with contextlib.suppress(Exception):
                             temp_file.unlink()
-                        except Exception:
-                            pass  # Ignore cleanup errors
 
     def _execute_binary_query(
         self, query: BinaryOpQuery, output: str | Path | None = None

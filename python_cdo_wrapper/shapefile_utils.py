@@ -8,13 +8,9 @@ ESRI shapefiles for use in NetCDF masking operations.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import numpy as np
 import xarray as xr
-
-if TYPE_CHECKING:
-    pass
 
 from .exceptions import CDOError, CDOFileNotFoundError, CDOValidationError
 
@@ -139,7 +135,11 @@ def create_mask_from_shapefile(
 
     # Combine all geometries into one for efficiency
     try:
-        combined_geom = gdf.geometry.unary_union
+        # Use union_all() if available (geopandas >= 0.13), else unary_union
+        if hasattr(gdf.geometry, "union_all"):
+            combined_geom = gdf.geometry.union_all()
+        else:
+            combined_geom = gdf.geometry.unary_union
         prepared_geom = prep(combined_geom)
     except Exception as e:
         raise CDOError(f"Failed to process geometries: {e}") from e
