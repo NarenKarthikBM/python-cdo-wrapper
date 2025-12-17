@@ -33,13 +33,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **BinaryOpQuery Bracket Removal**: Binary operators no longer generate unnecessary brackets in CDO commands
-  - Binary operators (add, sub, mul, div, min, max) always take exactly two inputs
-  - CDO assigns them unambiguously from right to left, so brackets are not needed
-  - Commands are now cleaner: `cdo -sub -yearmean data.nc clim.nc` instead of `cdo -sub [ -yearmean data.nc ] clim.nc`
-  - Brackets are only needed for variadic operators (cat, merge, apply), not for binary operations
-  - Follows CDO best practices and documentation recommendations
-  - Results in simpler, more readable commands with potentially better performance
+- **BinaryOpQuery Bracket Notation**: Fixed command generation for complex nested binary operations
+  - CDO requires bracket notation `[ ... ]` when operands have operators or are nested binary operations
+  - Commands now correctly use brackets when needed:
+    - `cdo -sub [ -yearmean data.nc ] clim.nc` (left operand has operators)
+    - `cdo -sub [ -yearmean data.nc ] [ -fldmean clim.nc ]` (both operands have operators)
+    - `cdo -sub [ -ifthen mask.nc [ -selname,t data.nc ] ] other.nc` (nested binary operations)
+  - Simple file references without operators correctly skip brackets: `cdo -sub data.nc clim.nc`
+  - Fixes "too many inputs" errors when using `ifthen` or `mask_by_shapefile` with `sub/add/mul/div`
+  - References: https://code.mpimet.mpg.de/boards/1/topics/14761
 
 ## [1.0.0] - 2025-12-12
 
