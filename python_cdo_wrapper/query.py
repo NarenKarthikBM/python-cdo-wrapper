@@ -2862,17 +2862,22 @@ class BinaryOpQuery(CDOQuery):
         """
         # Special handling for ifthenelse which has 3 operands
         if self._operator == "ifthenelse":
-            cond_cmd = self._get_operand_fragment(self._left, use_brackets=True)
+            cond_needs_brackets = self._needs_brackets(self._left)
+            cond_cmd = self._get_operand_fragment(
+                self._left, use_brackets=cond_needs_brackets
+            )
             # Right side is a nested BinaryOpQuery with _ifthenelse_args marker
             if (
                 isinstance(self._right, BinaryOpQuery)
                 and self._right._operator == "_ifthenelse_args"
             ):
+                then_needs_brackets = self._needs_brackets(self._right._left)
+                else_needs_brackets = self._needs_brackets(self._right._right)
                 then_cmd = self._get_operand_fragment(
-                    self._right._left, use_brackets=True
+                    self._right._left, use_brackets=then_needs_brackets
                 )
                 else_cmd = self._get_operand_fragment(
-                    self._right._right, use_brackets=True
+                    self._right._right, use_brackets=else_needs_brackets
                 )
                 base_cmd = f"-ifthenelse {cond_cmd} {then_cmd} {else_cmd}"
                 # Apply post_operators

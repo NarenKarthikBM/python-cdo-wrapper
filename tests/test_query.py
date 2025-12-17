@@ -1082,6 +1082,25 @@ class TestCDOQueryMaskingOperations:
         assert isinstance(q, BinaryOpQuery)
         cmd = q.get_command()
         assert "cdo -ifthenelse" in cmd
+        # Simple file references should not have brackets
+        assert "[" not in cmd
+        assert "]" not in cmd
+
+    def test_ifthenelse_with_operators(self, sample_nc_file):
+        """Test ifthenelse with operators on operands uses brackets."""
+        cdo = CDO()
+        q = cdo.query(sample_nc_file).year_mean().ifthenelse(
+            F("condition.nc"), F("fallback.nc").field_mean()
+        )
+
+        assert isinstance(q, BinaryOpQuery)
+        cmd = q.get_command()
+        assert "cdo -ifthenelse" in cmd
+        # Should have brackets for operands with operators
+        assert "[" in cmd
+        assert "]" in cmd
+        assert "-yearmean" in cmd
+        assert "-fldmean" in cmd
 
     def test_where_alias(self, sample_nc_file):
         """Test where() as alias for ifthenelse()."""
@@ -1356,9 +1375,10 @@ class TestBinaryOperations:
         q = cdo.query(sample_nc_file).year_mean().sub(F("climatology.nc"))
 
         cmd = q.get_command()
-        # Should use bracket notation
+        # Should use bracket notation for the left operand (has operators)
         assert "cdo -sub" in cmd
-
+        assert "[" in cmd
+        assert "]" in cmd
         assert "-yearmean" in cmd
 
     def test_addition(self, sample_nc_file):
