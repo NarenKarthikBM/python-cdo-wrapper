@@ -1406,6 +1406,88 @@ class TestBinaryOperations:
         assert isinstance(q, BinaryOpQuery)
         assert q._operator == "div"
 
+    def test_binary_operation_with_operators_uses_brackets(self, sample_nc_file):
+        """Test that binary operations with operators on operand use bracket notation."""
+        cdo = CDO()
+        # Left operand has operators, right is simple file
+        q = cdo.query(sample_nc_file).select_var("tas").year_mean().sub(F("clim.nc"))
+
+        cmd = q.get_command()
+        # Should have bracket notation for the left operand
+        assert "[" in cmd
+        assert "]" in cmd
+        assert "-yearmean" in cmd
+        assert "-selname,tas" in cmd
+        assert "clim.nc" in cmd
+
+    def test_binary_operation_both_operands_with_operators(self, sample_nc_file):
+        """Test binary operation where both operands have operators."""
+        cdo = CDO()
+        left = cdo.query(sample_nc_file).select_var("tas").year_mean()
+        right = F("clim.nc").field_mean()
+        q = left.sub(right)
+
+        cmd = q.get_command()
+        # Both sides should have brackets
+        assert cmd.count("[") == 2
+        assert cmd.count("]") == 2
+        assert "-yearmean" in cmd
+        assert "-selname,tas" in cmd
+        assert "-fldmean" in cmd
+        assert "clim.nc" in cmd
+
+    def test_simple_binary_no_brackets(self, sample_nc_file):
+        """Test simple binary operation without operators doesn't use brackets."""
+        cdo = CDO()
+        q = cdo.query(sample_nc_file).sub(F("clim.nc"))
+
+        cmd = q.get_command()
+        # Simple file references don't need brackets
+        assert "[" not in cmd
+        assert "]" not in cmd
+
+    def test_nested_binary_operations_use_brackets(self, sample_nc_file):
+        """Test nested binary operations (ifthen inside sub) use brackets."""
+        cdo = CDO()
+        # Create inner binary operation (ifthen)
+        inner = cdo.query(sample_nc_file).ifthen(F("mask.nc"))
+        # Create outer binary operation (sub)
+        q = inner.sub(F("clim.nc"))
+
+        cmd = q.get_command()
+        # The inner ifthen should be wrapped in brackets
+        assert "[" in cmd
+        assert "]" in cmd
+        assert "-ifthen" in cmd
+        assert "-sub" in cmd
+
+    def test_complex_binary_with_nested_ifthen_both_sides(self, sample_nc_file):
+        """Test complex binary with ifthen on both operands (issue from bug report)."""
+        cdo = CDO()
+        # Simulate the issue from the bug report
+        left = cdo.query(sample_nc_file).select_var("t").select_level(100000).ifthen(
+            F("mask.nc")
+        )
+        right = (
+            F("data2.nc")
+            .select_var("t")
+            .select_level(100000)
+            .ifthen(F("mask2.nc"))
+            .time_mean()
+        )
+        q = left.sub(right).time_mean()
+
+        cmd = q.get_command()
+        # Verify bracket notation is used
+        assert "[" in cmd
+        assert "]" in cmd
+        # Verify operators are present
+        assert "-sub" in cmd
+        assert "-ifthen" in cmd
+        assert "-timmean" in cmd
+        assert "-selname,t" in cmd
+        assert "-sellevel,100000" in cmd
+
 
 class TestBinaryOpQueryExplain:
     """Test explain functionality for binary operations."""

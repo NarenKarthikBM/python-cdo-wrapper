@@ -2819,31 +2819,61 @@ class BinaryOpQuery(CDOQuery):
         """
         return self._clone(post_operators=(*self._post_operators, spec))
 
+    def _needs_brackets(self, query: CDOQuery) -> bool:
+        """
+        Determine if an operand needs brackets in CDO command.
+
+        Brackets are needed when:
+        - The operand has operators applied to it
+        - The operand is a nested BinaryOpQuery (has its own binary operation)
+
+        Args:
+            query: Operand query to check
+
+        Returns:
+            True if brackets are needed, False otherwise
+        """
+        if isinstance(query, BinaryOpQuery):
+            return True
+        return bool(query._operators)
+
     def get_command(self, output: str | Path | None = None) -> str:
         """
-        Build CDO command without brackets (binary operators don't need them).
+        Build CDO command with bracket notation for complex operands.
 
-        Binary operators (add, sub, mul, div, etc.) always take exactly two inputs
-        and CDO assigns them unambiguously from right to left. Brackets are only
-        needed for variadic operators like -cat, -merge, -apply.
+        Binary operators (add, sub, mul, div, ifthen, etc.) take exactly two inputs.
+        When operands have their own pipelines (operators), CDO requires bracket
+        notation [ ... ] to properly separate the input streams.
+
+        Bracket notation is required when:
+        - An operand has operators applied (e.g., -yearmean, -selname)
+        - An operand is a nested binary operation (e.g., ifthen inside sub)
+
+        References:
+            - https://code.mpimet.mpg.de/boards/1/topics/14761
+            - https://code.mpimet.mpg.de/projects/cdo/embedded/index.html
 
         Examples:
             - Simple: cdo -sub a.nc b.nc out.nc
-            - Left has ops: cdo -sub -yearmean a.nc b.nc out.nc
-            - Both have ops: cdo -sub -yearmean a.nc -fldmean b.nc out.nc
-            - Chained binary: cdo -div -sub data.nc mean.nc std.nc out.nc
-            - With post_operators: cdo -sqrt -abs -sub a.nc b.nc out.nc
+            - Left has ops: cdo -sub [ -yearmean a.nc ] b.nc out.nc
+            - Both have ops: cdo -sub [ -yearmean a.nc ] [ -fldmean b.nc ] out.nc
+            - Nested binary: cdo -sub [ -ifthen mask.nc a.nc ] [ -timmean b.nc ] out.nc
+            - With post_operators: cdo -sqrt -abs -sub [ -yearmean a.nc ] b.nc out.nc
         """
         # Special handling for ifthenelse which has 3 operands
         if self._operator == "ifthenelse":
-            cond_cmd = self._get_operand_fragment(self._left)
+            cond_cmd = self._get_operand_fragment(self._left, use_brackets=True)
             # Right side is a nested BinaryOpQuery with _ifthenelse_args marker
             if (
                 isinstance(self._right, BinaryOpQuery)
                 and self._right._operator == "_ifthenelse_args"
             ):
-                then_cmd = self._get_operand_fragment(self._right._left)
-                else_cmd = self._get_operand_fragment(self._right._right)
+                then_cmd = self._get_operand_fragment(
+                    self._right._left, use_brackets=True
+                )
+                else_cmd = self._get_operand_fragment(
+                    self._right._right, use_brackets=True
+                )
                 base_cmd = f"-ifthenelse {cond_cmd} {then_cmd} {else_cmd}"
                 # Apply post_operators
                 if self._post_operators:
@@ -2857,11 +2887,17 @@ class BinaryOpQuery(CDOQuery):
                     cmd = f"{cmd} {output}"
                 return cmd
 
-        # Build left expression (may be a nested BinaryOpQuery)
-        left_expr = self._get_operand_fragment(self._left)
+        # Build left expression with brackets if needed
+        left_needs_brackets = self._needs_brackets(self._left)
+        left_expr = self._get_operand_fragment(
+            self._left, use_brackets=left_needs_brackets
+        )
 
-        # Build right expression
-        right_expr = self._get_operand_fragment(self._right)
+        # Build right expression with brackets if needed
+        right_needs_brackets = self._needs_brackets(self._right)
+        right_expr = self._get_operand_fragment(
+            self._right, use_brackets=right_needs_brackets
+        )
 
         # Build the binary operation part
         binary_part = f"-{self._operator} {left_expr} {right_expr}"
@@ -2879,24 +2915,36 @@ class BinaryOpQuery(CDOQuery):
             cmd = f"{cmd} {output}"
         return cmd
 
-    def _get_operand_fragment(self, query: CDOQuery) -> str:
+    def _get_operand_fragment(
+        self, query: CDOQuery, use_brackets: bool = False
+    ) -> str:
         """
-        Get command fragment for an operand without brackets.
+        Get command fragment for an operand, optionally wrapped in brackets.
 
-        Binary operators don't need brackets because they always take exactly
-        two inputs. CDO assigns them unambiguously from right to left.
+        CDO bracket notation [ ... ] is used to group operations for
+        multi-stream operators. This ensures CDO correctly identifies
+        which operators belong to which input stream.
 
         Args:
             query: Operand query (CDOQuery or BinaryOpQuery)
+            use_brackets: Whether to wrap the fragment in CDO brackets
 
         Returns:
-            Command fragment (e.g., "-sub -yearmean data.nc a.nc" or "-timmean data.nc")
+            Command fragment, optionally wrapped in [ ... ]
         """
         # Handle nested BinaryOpQuery (chained binary operations)
         if isinstance(query, BinaryOpQuery):
             # Get the inner binary operation command recursively
-            inner_left = self._get_operand_fragment(query._left)
-            inner_right = self._get_operand_fragment(query._right)
+            # Inner operands also need brackets if they have operators
+            inner_left_needs_brackets = self._needs_brackets(query._left)
+            inner_right_needs_brackets = self._needs_brackets(query._right)
+
+            inner_left = self._get_operand_fragment(
+                query._left, use_brackets=inner_left_needs_brackets
+            )
+            inner_right = self._get_operand_fragment(
+                query._right, use_brackets=inner_right_needs_brackets
+            )
             binary_part = f"-{query._operator} {inner_left} {inner_right}"
 
             # Include post_operators if any
@@ -2904,16 +2952,28 @@ class BinaryOpQuery(CDOQuery):
                 post_ops = " ".join(
                     op.to_cdo_fragment() for op in reversed(query._post_operators)
                 )
-                return f"{post_ops} {binary_part}"
-            return binary_part
+                fragment = f"{post_ops} {binary_part}"
+            else:
+                fragment = binary_part
+
+            # Wrap in brackets if requested
+            if use_brackets:
+                return f"[ {fragment} ]"
+            return fragment
 
         if not query._operators:
-            # Simple file reference
+            # Simple file reference - no brackets needed even if requested
+            # (single file doesn't need grouping)
             return str(query._input)
 
-        # Query with operators: just chain them
+        # Query with operators: chain them
         ops = " ".join(op.to_cdo_fragment() for op in reversed(query._operators))
-        return f"{ops} {query._input}"
+        fragment = f"{ops} {query._input}"
+
+        # Wrap in brackets if requested
+        if use_brackets:
+            return f"[ {fragment} ]"
+        return fragment
 
     def compute(self, output: str | Path | None = None) -> xr.Dataset:
         """
