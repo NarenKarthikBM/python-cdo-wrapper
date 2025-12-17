@@ -1725,3 +1725,136 @@ class TestCDOQueryFormatConversion:
         assert "-yearmean" in cmd
         # Options should be before operators
         assert cmd.index("-f nc4") < cmd.index("-yearmean")
+
+
+@pytest.mark.integration
+class TestBinaryOperationsIntegration:
+    """Integration tests for binary operations with bracket notation.
+
+    These tests require CDO to be installed and execute actual queries
+    to verify the bracket notation fix works correctly.
+    """
+
+    def test_binary_sub_with_operators_executes(self, sample_nc_file_with_time):
+        """Test binary subtraction with operators on left operand executes successfully."""
+        import xarray as xr
+
+        cdo = CDO()
+        # Left operand has operators, right is simple file reference
+        # This tests bracket notation: cdo -sub [ -yearmean file1 ] file2
+        result = (
+            cdo.query(sample_nc_file_with_time)
+            .select_var("tas")
+            .year_mean()
+            .sub(F(sample_nc_file_with_time))
+            .compute()
+        )
+
+        assert isinstance(result, xr.Dataset)
+        # Result should have the variable
+        assert "tas" in result.data_vars
+
+    def test_binary_sub_with_operators_both_sides_executes(
+        self, sample_nc_file_with_time
+    ):
+        """Test binary subtraction with operators on both operands executes successfully."""
+        import xarray as xr
+
+        cdo = CDO()
+        # Both operands have operators
+        # This tests bracket notation: cdo -sub [ -yearmean file1 ] [ -timmean file2 ]
+        result = (
+            cdo.query(sample_nc_file_with_time)
+            .select_var("tas")
+            .year_mean()
+            .sub(F(sample_nc_file_with_time).select_var("tas").time_mean())
+            .compute()
+        )
+
+        assert isinstance(result, xr.Dataset)
+        assert "tas" in result.data_vars
+
+    def test_nested_binary_ifthen_inside_sub_executes(self, sample_nc_file_with_time):
+        """Test nested binary operations (ifthen inside sub) execute successfully.
+
+        This specifically tests the fix for the issue where ifthen inside sub
+        caused 'too many inputs' errors without proper bracket notation.
+        """
+        import numpy as np
+        import xarray as xr
+
+        cdo = CDO()
+
+        # Create a mask file (all 1s to keep all data)
+        mask_ds = xr.open_dataset(sample_nc_file_with_time)
+        mask_data = xr.Dataset(
+            {
+                "mask": (
+                    ["time", "lat", "lon"],
+                    np.ones_like(mask_ds["tas"].values),
+                )
+            },
+            coords=mask_ds.coords,
+        )
+
+        # Save mask to temporary file
+        import tempfile
+
+        mask_file = tempfile.NamedTemporaryFile(suffix=".nc", delete=False)
+        mask_data.to_netcdf(mask_file.name)
+        mask_ds.close()
+
+        try:
+            # Create query with ifthen (creates BinaryOpQuery) then sub
+            # This tests: cdo -sub [ -ifthen mask.nc data.nc ] other.nc
+            masked_query = cdo.query(sample_nc_file_with_time).ifthen(F(mask_file.name))
+            result = masked_query.sub(F(sample_nc_file_with_time)).compute()
+
+            assert isinstance(result, xr.Dataset)
+        finally:
+            # Cleanup
+            import os
+
+            os.unlink(mask_file.name)
+
+    def test_anomaly_calculation_with_time_mean_executes(
+        self, sample_nc_file_with_time
+    ):
+        """Test calculating anomalies (data minus climatology) executes successfully.
+
+        This is a common climate science use case where bracket notation is required.
+        """
+        import xarray as xr
+
+        cdo = CDO()
+        # Calculate anomaly: data - time_mean(data)
+        # This tests: cdo -sub data.nc [ -timmean data.nc ]
+        result = (
+            cdo.query(sample_nc_file_with_time)
+            .select_var("tas")
+            .sub(F(sample_nc_file_with_time).select_var("tas").time_mean())
+            .compute()
+        )
+
+        assert isinstance(result, xr.Dataset)
+        assert "tas" in result.data_vars
+        # Anomalies should have some variation (not all zeros unless data is constant)
+
+    def test_chained_binary_operations_execute(self, sample_nc_file_with_time):
+        """Test chained binary operations (sub then div) execute successfully."""
+        import xarray as xr
+
+        cdo = CDO()
+        # Normalized anomaly: (data - mean) / std
+        # First subtract mean, then divide by a reference
+        # This creates nested BinaryOpQuery structures
+        result = (
+            cdo.query(sample_nc_file_with_time)
+            .select_var("tas")
+            .sub(F(sample_nc_file_with_time).select_var("tas").time_mean())
+            .div(F(sample_nc_file_with_time).select_var("tas").time_std())
+            .compute()
+        )
+
+        assert isinstance(result, xr.Dataset)
+        assert "tas" in result.data_vars
