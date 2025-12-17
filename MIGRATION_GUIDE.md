@@ -505,11 +505,11 @@ temp_diff = (
     .compute()
 )
 
-# Generates CDO command with bracket notation:
-# cdo -sub [ -sellevel,1000 -selname,ta data.nc ] [ -sellevel,500 -selname,ta data.nc ]
+# Generates CDO command with operator chaining:
+# cdo -sub -sellevel,1000 -selname,ta data.nc -sellevel,500 -selname,ta data.nc
 ```
 
-**Note**: Requires **CDO >= 1.9.8** for bracket notation support.
+**Note**: All CDO operations execute in a single command using operator chaining.
 
 ---
 
@@ -791,11 +791,11 @@ cdo = CDO(cdo_path="/usr/local/bin/cdo")
 
 ---
 
-### Issue: "Bracket notation not supported"
+### Issue: Binary operations not working as expected
 
-**Error**: Binary operations fail with older CDO versions
+**Error**: Binary operations produce unexpected results
 
-**Solution**: Upgrade to CDO >= 1.9.8:
+**Solution**: Ensure CDO >= 1.9.8 and review command with `.get_command()`:
 
 ```bash
 # macOS
