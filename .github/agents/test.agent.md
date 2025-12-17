@@ -1,6 +1,7 @@
 ---
 description: 'Specialized agent for test patterns, fixtures, mocking, and integration tests'
-tools: [read_file, replace_string_in_file, multi_replace_string_in_file, semantic_search, grep_search, runTests]
+model: Claude Sonnet 4.5 (copilot)
+tools: ['edit', 'search', 'web', 'todo', 'execute/runTests', 'execute/testFailure']
 ---
 
 # Test Agent

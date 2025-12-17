@@ -208,6 +208,8 @@ upper_air = (
 
 #### Binary Operations with F()
 
+Binary operations use CDO's operator chaining (not bracket notation):
+
 ```python
 from python_cdo_wrapper import CDO, F
 
@@ -215,6 +217,7 @@ cdo = CDO()
 
 # Simple anomaly (ONE LINE!)
 anomaly = cdo.query("monthly_data.nc").sub(F("climatology.nc")).compute()
+# Generates: cdo -sub monthly_data.nc climatology.nc
 
 # Standardized anomaly: (data - mean) / std
 std_anomaly = (
@@ -223,29 +226,33 @@ std_anomaly = (
     .div(F("std_dev.nc"))
     .compute()
 )
+# Generates: cdo -div -sub data.nc climatology.nc std_dev.nc
 
-# Process both sides before subtraction
+# With operators: CDO chains operators to their respective files
+# No temporary files or brackets needed!
 temp_diff = (
     cdo.query("data.nc")
     .select_var("tas")
-    .select_level(1000)
-    .sub(
-        F("data.nc").select_var("tas").select_level(500)
-    )
+    .year_mean()
+    .sub(F("climatology.nc").time_mean())
     .compute()
 )
+# Generates: cdo -sub -yearmean -selname,tas data.nc -timmean climatology.nc
 
-# Model bias calculation
+# Model bias calculation with operators on both sides - single command!
 bias = (
     cdo.query("model_output.nc")
     .select_var("tas")
     .year_mean()
-    .field_mean()
     .sub(
-        F("observations.nc").select_var("tas").year_mean().field_mean()
+        F("observations.nc").select_var("tas").year_mean()
     )
     .compute()
 )
+# Generates: cdo -sub -yearmean -selname,tas model_output.nc -yearmean -selname,tas observations.nc
+```
+
+**Note**: CDO applies operators to files from left to right. Binary operators (sub, add, mul, div) use operator chaining, not bracket notation - that's only for variadic operators like merge/cat.
 ```
 
 #### Query Introspection and Branching
@@ -864,10 +871,10 @@ result = cdo(cmd, output_file=None, return_xr=True, return_dict=False, debug=Fal
 
 ### CDO Version
 
-- **Minimum**: CDO >= 1.9.8 (required for bracket notation in binary operations)
+- **Minimum**: CDO >= 1.9.8
 - **Recommended**: CDO >= 2.0.0
 
-Binary operations using `F()` require CDO >= 1.9.8 for bracket notation support. Other features work with earlier versions.
+All features are compatible with CDO >= 1.9.8. Binary operations use standard operator chaining syntax supported by all modern CDO versions.
 
 ### Python Version
 
@@ -926,6 +933,17 @@ Climate science frequently requires calculating anomalies: deviations from clima
 
 # v1.0.0 approach (ONE LINE!)
 anomaly = cdo.query("monthly_data.nc").sub(F("climatology.nc")).compute()
+# Generates: cdo -sub monthly_data.nc climatology.nc
+
+# With preprocessing - operators chain to respective files!
+processed_anomaly = (
+    cdo.query("data.nc")
+    .select_var("tas")
+    .year_mean()
+    .sub(F("climatology.nc").time_mean())
+    .compute()
+)
+# Generates: cdo -sub -yearmean -selname,tas data.nc -timmean climatology.nc
 ```
 
 The `F()` function references another file in the operation, enabling:
@@ -933,6 +951,8 @@ The `F()` function references another file in the operation, enabling:
 - **Bias corrections**: `model.sub(F("observations"))`
 - **Standardization**: `data.sub(F("mean")).div(F("std"))`
 - **Difference fields**: `level1000.sub(F("level500"))`
+
+**Technical Note**: Binary operations use CDO's operator chaining syntax. Operators are applied directly to their respective input files from left to right, without bracket notation. This allows all operations to execute in a single CDO command.
 
 ### Query Introspection
 

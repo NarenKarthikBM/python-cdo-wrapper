@@ -1082,6 +1082,23 @@ class TestCDOQueryMaskingOperations:
         assert isinstance(q, BinaryOpQuery)
         cmd = q.get_command()
         assert "cdo -ifthenelse" in cmd
+        # Simple file references should not have brackets
+        assert "[" not in cmd
+        assert "]" not in cmd
+
+    def test_ifthenelse_with_operators(self, sample_nc_file):
+        """Test ifthenelse with operators on operands requires compute()."""
+        cdo = CDO()
+        q = (
+            cdo.query(sample_nc_file)
+            .year_mean()
+            .ifthenelse(F("condition.nc"), F("fallback.nc").field_mean())
+        )
+
+        assert isinstance(q, BinaryOpQuery)
+        # ifthenelse with operators still requires temporary files (special case)
+        with pytest.raises(CDOError, match=r"temporary file handling|ifthenelse"):
+            q.get_command()
 
     def test_where_alias(self, sample_nc_file):
         """Test where() as alias for ifthenelse()."""
@@ -1350,15 +1367,16 @@ class TestBinaryOperations:
         print(cmd)
         assert "cdo -sub" in cmd
 
-    def test_anomaly_calculation_with_brackets(self, sample_nc_file):
-        """Test anomaly calculation requiring bracket notation."""
+    def test_anomaly_calculation_with_operator_chaining(self, sample_nc_file):
+        """Test anomaly calculation using operator chaining (no brackets)."""
         cdo = CDO()
         q = cdo.query(sample_nc_file).year_mean().sub(F("climatology.nc"))
 
         cmd = q.get_command()
-        # Should use bracket notation
+        # Should use operator chaining for left operand (NO brackets)
         assert "cdo -sub" in cmd
-
+        assert "[" not in cmd
+        assert "]" not in cmd
         assert "-yearmean" in cmd
 
     def test_addition(self, sample_nc_file):
@@ -1405,6 +1423,132 @@ class TestBinaryOperations:
         # Second binary operation should work on result of first
         assert isinstance(q, BinaryOpQuery)
         assert q._operator == "div"
+
+    def test_binary_operation_with_operators_uses_chaining(self, sample_nc_file):
+        """Test that binary operations with operators on left operand use operator chaining."""
+        cdo = CDO()
+        # Left operand has operators, right is simple file
+        q = cdo.query(sample_nc_file).select_var("tas").year_mean().sub(F("clim.nc"))
+
+        cmd = q.get_command()
+        # Should use operator chaining (NO brackets)
+        assert "[" not in cmd
+        assert "]" not in cmd
+        assert "-yearmean" in cmd
+        assert "-selname,tas" in cmd
+        assert "clim.nc" in cmd
+
+    def test_binary_operation_right_operand_with_operators(self, sample_nc_file):
+        """Test binary operation where right operand has operators."""
+        cdo = CDO()
+        q = cdo.query(sample_nc_file).sub(F("clim.nc").year_mean())
+
+        cmd = q.get_command()
+        # Should have: cdo -sub file1.nc -yearmean clim.nc
+        assert "cdo -sub" in cmd
+        assert "-yearmean" in cmd
+        assert "clim.nc" in cmd
+        # Should NOT have brackets
+        assert "[" not in cmd
+        assert "]" not in cmd
+
+    def test_binary_operation_both_operands_with_operators(self, sample_nc_file):
+        """Test binary operation where both operands have operators generates correct command."""
+        cdo = CDO()
+        left = cdo.query(sample_nc_file).select_var("tas").year_mean()
+        right = F("clim.nc").field_mean()
+        q = left.sub(right)
+
+        # get_command() should work - CDO handles both operators in one command
+        cmd = q.get_command()
+        # Should have: cdo -sub -yearmean -selname,tas file1.nc -fldmean clim.nc
+        assert "cdo -sub" in cmd
+        assert "-yearmean" in cmd
+        assert "-selname,tas" in cmd
+        assert "-fldmean" in cmd
+        assert "clim.nc" in cmd
+        # Should NOT have brackets
+        assert "[" not in cmd
+        assert "]" not in cmd
+
+    def test_simple_binary_no_brackets(self, sample_nc_file):
+        """Test simple binary operation without operators doesn't use brackets."""
+        cdo = CDO()
+        q = cdo.query(sample_nc_file).sub(F("clim.nc"))
+
+        cmd = q.get_command()
+        # Simple file references don't need brackets
+        assert "[" not in cmd
+        assert "]" not in cmd
+
+    def test_nested_binary_operations_generate_correct_command(self, sample_nc_file):
+        """Test nested binary operations (ifthen inside sub) generate correct command."""
+        cdo = CDO()
+        # Create inner binary operation (ifthen)
+        inner = cdo.query(sample_nc_file).ifthen(F("mask.nc"))
+        # Create outer binary operation (sub)
+        q = inner.sub(F("clim.nc"))
+
+        cmd = q.get_command()
+        # Should generate: cdo -sub -ifthen mask.nc data.nc clim.nc
+        assert "cdo -sub" in cmd
+        assert "-ifthen" in cmd
+        assert "mask.nc" in cmd
+        assert "clim.nc" in cmd
+        # Should NOT have brackets
+        assert "[" not in cmd
+        assert "]" not in cmd
+
+    def test_complex_binary_with_nested_ifthen_both_sides(self, sample_nc_file):
+        """Test complex binary with nested ifthen on both operands generates correct command."""
+        cdo = CDO()
+        # Simulate the issue from the bug report
+        left = (
+            cdo.query(sample_nc_file)
+            .select_var("t")
+            .select_level(100000)
+            .ifthen(F("mask.nc"))
+        )
+        right = (
+            F("data2.nc")
+            .select_var("t")
+            .select_level(100000)
+            .ifthen(F("mask2.nc"))
+            .time_mean()
+        )
+        q = left.sub(right).time_mean()
+
+        # Should now generate correct command without errors
+        cmd = q.get_command()
+        assert "cdo -timmean -sub" in cmd
+        assert "-selname,t" in cmd
+        assert "-sellevel,100000" in cmd
+        assert "-ifthen" in cmd
+        # Should NOT have brackets
+        assert "[" not in cmd
+        assert "]" not in cmd
+
+        # Verify the query structure is correct
+        assert isinstance(q, BinaryOpQuery)
+        assert q._operator == "sub"
+
+    def test_nested_binary_with_operators_on_both_sides(self, sample_nc_file):
+        """Test nested binary where both sides have complex operations."""
+        cdo = CDO()
+        # Left side: ifthen with operators before it
+        left = cdo.query(sample_nc_file).select_var("tas").ifthen(F("mask.nc"))
+        # Right side: simple operators
+        right = F("clim.nc").time_mean()
+        q = left.sub(right)
+
+        cmd = q.get_command()
+        # Should chain all operators correctly
+        assert "cdo -sub" in cmd
+        assert "-selname,tas" in cmd
+        assert "-ifthen" in cmd
+        assert "-timmean" in cmd
+        assert "[" not in cmd  # No brackets
+        assert "]" not in cmd
 
 
 class TestBinaryOpQueryExplain:
@@ -1623,3 +1767,135 @@ class TestCDOQueryFormatConversion:
         assert "-yearmean" in cmd
         # Options should be before operators
         assert cmd.index("-f nc4") < cmd.index("-yearmean")
+
+
+@pytest.mark.integration
+class TestBinaryOperationsIntegration:
+    """Integration tests for binary operations with proper temp file handling.
+
+    These tests require CDO to be installed and execute actual queries
+    to verify the fix works correctly (no brackets, operator chaining + temp files).
+    """
+
+    def test_binary_sub_with_operators_executes(self, sample_nc_file_with_time):
+        """Test binary subtraction with operators on left operand executes successfully."""
+        import xarray as xr
+
+        cdo = CDO()
+        # Left operand has operators, right is simple file reference
+        # This uses operator chaining: cdo -sub -yearmean file1 file2
+        result = (
+            cdo.query(sample_nc_file_with_time)
+            .select_var("tas")
+            .year_mean()
+            .sub(F(sample_nc_file_with_time))
+            .compute()
+        )
+
+        assert isinstance(result, xr.Dataset)
+        # Result should have the variable
+        assert "tas" in result.data_vars
+
+    def test_binary_sub_with_operators_both_sides_executes(
+        self, sample_nc_file_with_time
+    ):
+        """Test binary subtraction with operators on both operands executes successfully."""
+        import xarray as xr
+
+        cdo = CDO()
+        # Both operands have operators
+        # This uses temporary files for right operand (no brackets!)
+        result = (
+            cdo.query(sample_nc_file_with_time)
+            .select_var("tas")
+            .year_mean()
+            .sub(F(sample_nc_file_with_time).select_var("tas").time_mean())
+            .compute()
+        )
+
+        assert isinstance(result, xr.Dataset)
+        assert "tas" in result.data_vars
+
+    def test_nested_binary_ifthen_inside_sub_executes(self, sample_nc_file_with_time):
+        """Test nested binary operations (ifthen inside sub) execute successfully.
+
+        This specifically tests the fix for the issue where ifthen inside sub
+        caused 'too many inputs' errors without proper bracket notation.
+        """
+        import numpy as np
+        import xarray as xr
+
+        cdo = CDO()
+
+        # Create a mask file (all 1s to keep all data)
+        mask_ds = xr.open_dataset(sample_nc_file_with_time)
+        mask_data = xr.Dataset(
+            {
+                "mask": (
+                    ["time", "lat", "lon"],
+                    np.ones_like(mask_ds["tas"].values),
+                )
+            },
+            coords=mask_ds.coords,
+        )
+
+        # Save mask to temporary file
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(suffix=".nc", delete=False) as mask_file:
+            mask_data.to_netcdf(mask_file.name)
+
+        try:
+            # Create query with ifthen (creates BinaryOpQuery) then sub
+            # This tests: cdo -sub -ifthen mask.nc data.nc other.nc
+            masked_query = cdo.query(sample_nc_file_with_time).ifthen(F(mask_file.name))
+            result = masked_query.sub(F(sample_nc_file_with_time)).compute()
+
+            assert isinstance(result, xr.Dataset)
+        finally:
+            # Cleanup
+            from pathlib import Path
+
+            Path(mask_file.name).unlink()
+
+    def test_anomaly_calculation_with_time_mean_executes(
+        self, sample_nc_file_with_time
+    ):
+        """Test calculating anomalies (data minus climatology) executes successfully.
+
+        This is a common climate science use case where bracket notation is required.
+        """
+        import xarray as xr
+
+        cdo = CDO()
+        # Calculate anomaly: data - time_mean(data)
+        # This tests: cdo -sub data.nc -timmean data.nc
+        result = (
+            cdo.query(sample_nc_file_with_time)
+            .select_var("tas")
+            .sub(F(sample_nc_file_with_time).select_var("tas").time_mean())
+            .compute()
+        )
+
+        assert isinstance(result, xr.Dataset)
+        assert "tas" in result.data_vars
+        # Anomalies should have some variation (not all zeros unless data is constant)
+
+    def test_chained_binary_operations_execute(self, sample_nc_file_with_time):
+        """Test chained binary operations (sub then div) execute successfully."""
+        import xarray as xr
+
+        cdo = CDO()
+        # Normalized anomaly: (data - mean) / std
+        # First subtract mean, then divide by a reference
+        # This creates nested BinaryOpQuery structures
+        result = (
+            cdo.query(sample_nc_file_with_time)
+            .select_var("tas")
+            .sub(F(sample_nc_file_with_time).select_var("tas").time_mean())
+            .div(F(sample_nc_file_with_time).select_var("tas").time_std())
+            .compute()
+        )
+
+        assert isinstance(result, xr.Dataset)
+        assert "tas" in result.data_vars

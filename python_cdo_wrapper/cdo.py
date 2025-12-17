@@ -296,6 +296,17 @@ class CDO:
             if use_temp and output_path.exists():
                 output_path.unlink()
 
+            # Clean up query temp files (e.g., shapefile masks)
+            if hasattr(query, "_temp_files"):
+                import contextlib
+
+                print(query._temp_files)
+
+                for temp_file in query._temp_files:
+                    if temp_file and temp_file.exists():
+                        with contextlib.suppress(Exception):
+                            temp_file.unlink()
+
     def _check_cdo_available(self) -> None:
         """
         Check if CDO is available and executable.

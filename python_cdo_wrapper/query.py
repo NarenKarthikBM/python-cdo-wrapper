@@ -738,6 +738,7 @@ class CDOQuery:
         # Store temp file path for cleanup (immutable pattern)
         # Merge temp files from both operands
         all_temp_files = (*self._temp_files, mask_path)
+
         # Update the binary query's temp files using object.__setattr__ (frozen dataclass pattern)
         object.__setattr__(binary_query, "_temp_files", all_temp_files)
 
@@ -2729,23 +2730,39 @@ class BinaryOpQuery(CDOQuery):
     """
     Query for binary arithmetic operations in CDO.
 
-    BinaryOpQuery handles operations between two datasets. Binary operators
-    (add, sub, mul, div, etc.) always take exactly two inputs, so CDO assigns
-    them unambiguously from right to left without needing brackets.
+    BinaryOpQuery handles operations between two datasets using CDO's operator
+    chaining syntax (no bracket notation). Operators are applied to their
+    respective input files from left to right.
 
-    Brackets are only needed for variadic operators (cat, merge, apply) that
-    accept a variable number of inputs.
+    Binary operators (add, sub, mul, div) do NOT use bracket notation - that's
+    only for variadic operators (merge, cat). CDO applies operators directly
+    to their input files using operator chaining.
 
     Example:
-        >>> # Anomaly calculation
-        >>> anomaly = cdo.query("data.nc").year_mean().sub(F("climatology.nc"))
-        >>> print(anomaly.get_command())
+        >>> # Simple case
+        >>> q = cdo.query("data.nc").sub(F("climatology.nc"))
+        >>> print(q.get_command())
+        'cdo -sub data.nc climatology.nc'
+
+        >>> # Operators on left
+        >>> q = cdo.query("data.nc").year_mean().sub(F("climatology.nc"))
+        >>> print(q.get_command())
         'cdo -sub -yearmean data.nc climatology.nc'
 
-        >>> # Chained binary operations
-        >>> std_anomaly = cdo.query("data.nc").sub(F("mean.nc")).div(F("std.nc"))
-        >>> print(std_anomaly.get_command())
-        'cdo -div -sub data.nc mean.nc std.nc'
+        >>> # Operators on both sides - single command!
+        >>> q = cdo.query("data.nc").year_mean().sub(F("clim.nc").time_mean())
+        >>> print(q.get_command())
+        'cdo -sub -yearmean data.nc -timmean clim.nc'
+
+        >>> # Nested binary operations
+        >>> masked = cdo.query("data.nc").ifthen(F("mask.nc"))
+        >>> q = masked.sub(F("clim.nc"))
+        >>> print(q.get_command())
+        'cdo -sub -ifthen mask.nc data.nc clim.nc'
+
+    See Also:
+        CDO Tutorial on operator chaining:
+        https://code.mpimet.mpg.de/projects/cdo/wiki/Tutorial#Combining-Operators
     """
 
     _operator: str  # Binary operator: sub, add, mul, div, max, min
@@ -2821,103 +2838,157 @@ class BinaryOpQuery(CDOQuery):
 
     def get_command(self, output: str | Path | None = None) -> str:
         """
-        Build CDO command without brackets (binary operators don't need them).
+        Build CDO command for binary operation WITHOUT bracket notation.
 
-        Binary operators (add, sub, mul, div, etc.) always take exactly two inputs
-        and CDO assigns them unambiguously from right to left. Brackets are only
-        needed for variadic operators like -cat, -merge, -apply.
+        CDO binary operators can handle operators on both operands in a single command.
+
+        Correct CDO syntax:
+        1. Neither has operators: cdo -sub file1.nc file2.nc out.nc
+        2. Left has operators: cdo -sub -yearmean -selname,tas file1.nc file2.nc out.nc
+        3. Right has operators: cdo -sub file1.nc -timmean -selname,tas file2.nc out.nc
+        4. Both have operators: cdo -sub -yearmean file1.nc -timmean file2.nc out.nc
+
+        Args:
+            output: Optional output file path
+
+        Returns:
+            CDO command string
 
         Examples:
-            - Simple: cdo -sub a.nc b.nc out.nc
-            - Left has ops: cdo -sub -yearmean a.nc b.nc out.nc
-            - Both have ops: cdo -sub -yearmean a.nc -fldmean b.nc out.nc
-            - Chained binary: cdo -div -sub data.nc mean.nc std.nc out.nc
-            - With post_operators: cdo -sqrt -abs -sub a.nc b.nc out.nc
+            >>> # Simple case
+            >>> q = cdo.query("a.nc").sub(F("b.nc"))
+            >>> q.get_command()  # "cdo -sub a.nc b.nc"
+
+            >>> # Left has operators
+            >>> q = cdo.query("a.nc").select_var("tas").sub(F("b.nc"))
+            >>> q.get_command()  # "cdo -sub -selname,tas a.nc b.nc"
+
+            >>> # Right has operators
+            >>> q = cdo.query("a.nc").sub(F("b.nc").year_mean())
+            >>> q.get_command()  # "cdo -sub a.nc -yearmean b.nc"
+
+            >>> # Both have operators
+            >>> q = cdo.query("a.nc").year_mean().sub(F("b.nc").time_mean())
+            >>> q.get_command()  # "cdo -sub -yearmean a.nc -timmean b.nc"
         """
-        # Special handling for ifthenelse which has 3 operands
-        if self._operator == "ifthenelse":
-            cond_cmd = self._get_operand_fragment(self._left)
-            # Right side is a nested BinaryOpQuery with _ifthenelse_args marker
+        # Check if operands have operators
+        left_has_ops = bool(self._left._operators) or isinstance(
+            self._left, BinaryOpQuery
+        )
+        right_has_ops = bool(self._right._operators) or isinstance(
+            self._right, BinaryOpQuery
+        )
+
+        # Special handling for ifthenelse which needs all three operands
+        if (
+            self._operator == "ifthenelse"
+            and isinstance(self._right, BinaryOpQuery)
+            and self._right._operator == "_ifthenelse_args"
+        ):
+            # All three operands need evaluation - requires temp files if any have ops
             if (
-                isinstance(self._right, BinaryOpQuery)
-                and self._right._operator == "_ifthenelse_args"
+                left_has_ops
+                or bool(self._right._left._operators)
+                or isinstance(self._right._left, BinaryOpQuery)
+                or bool(self._right._right._operators)
+                or isinstance(self._right._right, BinaryOpQuery)
             ):
-                then_cmd = self._get_operand_fragment(self._right._left)
-                else_cmd = self._get_operand_fragment(self._right._right)
-                base_cmd = f"-ifthenelse {cond_cmd} {then_cmd} {else_cmd}"
-                # Apply post_operators
-                if self._post_operators:
-                    post_ops = " ".join(
-                        op.to_cdo_fragment() for op in reversed(self._post_operators)
-                    )
-                    cmd = f"cdo {post_ops} {base_cmd}"
-                else:
-                    cmd = f"cdo {base_cmd}"
-                if output:
-                    cmd = f"{cmd} {output}"
-                return cmd
+                raise CDOError(
+                    "ifthenelse with operators on any operand requires "
+                    "temporary file handling (call compute() instead of get_command())"
+                )
+            # Simple case - all three are just files
+            cmd = (
+                f"cdo -ifthenelse {self._left._input} "
+                f"{self._right._left._input} {self._right._right._input}"
+            )
+            if output:
+                cmd = f"{cmd} {output}"
+            return cmd
 
-        # Build left expression (may be a nested BinaryOpQuery)
-        left_expr = self._get_operand_fragment(self._left)
+        # Build command based on which operands have operators
+        if not left_has_ops and not right_has_ops:
+            # Case 1: cdo -sub file1.nc file2.nc
+            cmd = f"cdo -{self._operator} {self._left._input} {self._right._input}"
 
-        # Build right expression
-        right_expr = self._get_operand_fragment(self._right)
+        elif left_has_ops and not right_has_ops:
+            # Case 2: cdo -sub -yearmean file1.nc file2.nc
+            left_chain = self._get_operator_chain(self._left)
+            cmd = f"cdo -{self._operator} {left_chain} {self._right._input}"
 
-        # Build the binary operation part
-        binary_part = f"-{self._operator} {left_expr} {right_expr}"
+        elif not left_has_ops and right_has_ops:
+            # Case 3: cdo -sub file1.nc -timmean file2.nc
+            right_chain = self._get_operator_chain(self._right)
+            cmd = f"cdo -{self._operator} {self._left._input} {right_chain}"
+
+        else:
+            # Case 4: cdo -sub -yearmean file1.nc -timmean file2.nc
+            left_chain = self._get_operator_chain(self._left)
+            right_chain = self._get_operator_chain(self._right)
+            cmd = f"cdo -{self._operator} {left_chain} {right_chain}"
 
         # Apply post_operators (operations after the binary op)
         if self._post_operators:
             post_ops = " ".join(
                 op.to_cdo_fragment() for op in reversed(self._post_operators)
             )
-            cmd = f"cdo {post_ops} {binary_part}"
-        else:
-            cmd = f"cdo {binary_part}"
+            cmd = f"cdo {post_ops} {cmd[4:]}"  # Remove 'cdo ' and prepend post_ops
 
         if output:
             cmd = f"{cmd} {output}"
         return cmd
 
-    def _get_operand_fragment(self, query: CDOQuery) -> str:
+    def _get_operator_chain(self, query: CDOQuery) -> str:
         """
-        Get command fragment for an operand without brackets.
+        Get operator chain for operands in binary operation.
 
-        Binary operators don't need brackets because they always take exactly
-        two inputs. CDO assigns them unambiguously from right to left.
+        Binary operations support operator chaining on both operands:
+        - Left: cdo -sub -yearmean -selname,tas file1.nc file2.nc
+        - Right: cdo -sub file1.nc -timmean -selname,tas file2.nc
+        - Both: cdo -sub -yearmean file1.nc -timmean file2.nc
+
+        This allows processing without temporary files.
 
         Args:
-            query: Operand query (CDOQuery or BinaryOpQuery)
+            query: Operand query (left or right)
 
         Returns:
-            Command fragment (e.g., "-sub -yearmean data.nc a.nc" or "-timmean data.nc")
-        """
-        # Handle nested BinaryOpQuery (chained binary operations)
-        if isinstance(query, BinaryOpQuery):
-            # Get the inner binary operation command recursively
-            inner_left = self._get_operand_fragment(query._left)
-            inner_right = self._get_operand_fragment(query._right)
-            binary_part = f"-{query._operator} {inner_left} {inner_right}"
+            Operator chain string like "-yearmean -selname,tas file.nc"
 
-            # Include post_operators if any
+        Note:
+            For nested BinaryOpQuery, this will recursively build the command.
+        """
+        if isinstance(query, BinaryOpQuery):
+            # Nested binary operation - recursively build its command
+            # CDO supports this: cdo -sub -ifthen mask.nc data.nc climatology.nc
+            nested_op = f"-{query._operator}"
+
+            # Build chains for its operands
+            nested_left = self._get_operator_chain(query._left)
+            nested_right = self._get_operator_chain(query._right)
+
+            # Apply any post_operators from the nested query
             if query._post_operators:
                 post_ops = " ".join(
                     op.to_cdo_fragment() for op in reversed(query._post_operators)
                 )
-                return f"{post_ops} {binary_part}"
-            return binary_part
+                return f"{post_ops} {nested_op} {nested_left} {nested_right}"
+
+            return f"{nested_op} {nested_left} {nested_right}"
 
         if not query._operators:
             # Simple file reference
             return str(query._input)
 
-        # Query with operators: just chain them
+        # Build operator chain: operators in reverse order, then input file
         ops = " ".join(op.to_cdo_fragment() for op in reversed(query._operators))
         return f"{ops} {query._input}"
 
     def compute(self, output: str | Path | None = None) -> xr.Dataset:
         """
-        Execute binary operation and return result.
+        Execute binary operation (no temporary files needed).
+
+        CDO natively handles operators on both operands in a single command.
 
         Args:
             output: Optional output file path
@@ -2930,7 +3001,90 @@ class BinaryOpQuery(CDOQuery):
         """
         if self._cdo is None:
             raise CDOError("Query not bound to a CDO instance")
-        return self._cdo._execute_binary_query(self, output)
+
+        import os
+        import subprocess
+        import tempfile
+        from pathlib import Path
+
+        import xarray as xr
+
+        from .exceptions import CDOExecutionError
+        from .validation import validate_file_exists
+
+        # Validate input files exist
+        if self._left._input:
+            validate_file_exists(self._left._input)
+        if self._right._input:
+            validate_file_exists(self._right._input)
+
+        # Build command using get_command()
+        cmd = self.get_command()
+
+        # Determine output file
+        if output:
+            output_path = Path(output)
+            use_temp = False
+        else:
+            fd, temp_path = tempfile.mkstemp(suffix=".nc", dir=self._cdo.temp_dir)
+            os.close(fd)
+            output_path = Path(temp_path)
+            use_temp = True
+
+        try:
+            full_cmd = f"{cmd} {output_path}"
+
+            if self._cdo.debug:
+                print(f"[CDO] Executing: {full_cmd}")
+
+            result = subprocess.run(
+                full_cmd,
+                shell=True,
+                capture_output=True,
+                text=True,
+                env={**os.environ, **self._cdo.env},
+            )
+
+            if result.returncode != 0:
+                raise CDOExecutionError(
+                    message=f"CDO command failed with return code {result.returncode}",
+                    command=full_cmd,
+                    returncode=result.returncode,
+                    stdout=result.stdout,
+                    stderr=result.stderr,
+                )
+
+            ds = xr.open_dataset(output_path)
+
+            if use_temp:
+                ds = ds.load()
+                output_path.unlink()
+
+            # Clean up tracked temp files before return
+            if self._temp_files:
+                import contextlib
+
+                for temp_file in self._temp_files:
+                    if temp_file and temp_file.exists():
+                        with contextlib.suppress(Exception):
+                            temp_file.unlink()
+
+            return ds
+
+        except Exception:
+            if use_temp and output_path.exists():
+                output_path.unlink()
+
+            # Clean up tracked temp files even on error
+            if self._temp_files:
+                import contextlib
+
+                for temp_file in self._temp_files:
+                    if temp_file and temp_file.exists():
+                        with contextlib.suppress(Exception):
+                            temp_file.unlink()
+
+            raise
 
     def explain(self) -> str:
         """

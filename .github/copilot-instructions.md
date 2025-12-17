@@ -63,7 +63,7 @@ The package now provides a **Django ORM-style `CDOQuery`** as the primary abstra
 - **`CDOQuery` class**: Lazy, chainable query builder (like Django's `QuerySet`)
 - **`CDO` class**: Factory + façade providing `.query()` and convenience methods
 - **`F()` function**: Django F-expression pattern for binary operations (anomaly calculations!)
-- **`BinaryOpQuery`**: Handles binary arithmetic with CDO bracket notation
+- **`BinaryOpQuery`**: Handles binary arithmetic with operator chaining (no brackets)
 - **`CDOQueryTemplate`**: Reusable query templates with placeholders
 - **Lazy evaluation**: Build pipelines, inspect commands, execute when ready
 - **Query composition**: Clone and branch queries for variations
@@ -73,7 +73,7 @@ The package now provides a **Django ORM-style `CDOQuery`** as the primary abstra
 
 ### CDO Version Requirements
 
-- **Minimum**: CDO >= 1.9.8 (required for bracket notation in binary operations)
+- **Minimum**: CDO >= 1.9.8
 - **Recommended**: CDO >= 2.0.0
 
 ### Python Version Support
@@ -361,10 +361,11 @@ class BinaryOpQuery(CDOQuery):
     """
     Query for binary operations (sub, add, mul, div, min, max).
 
-    Uses CDO's bracket notation for nested operations:
-        cdo -sub [ -yearmean data.nc ] [ -fldmean other.nc ] output.nc
+    Uses CDO's operator chaining (no bracket notation):
+        cdo -sub -yearmean data.nc -fldmean other.nc output.nc
 
-    Requires CDO >= 1.9.8 for bracket notation support.
+    Binary operators apply operators left-to-right to their respective input files.
+    Supports nested binary operations (e.g., ifthen inside sub).
     """
 
     def __init__(
@@ -381,14 +382,15 @@ class BinaryOpQuery(CDOQuery):
 
     def get_command(self) -> str:
         """
-        Build CDO command with bracket notation.
+        Build CDO command with operator chaining.
 
         Examples:
             - Simple: cdo -sub a.nc b.nc
-            - Left has ops: cdo -sub [ -yearmean a.nc ] b.nc
-            - Both have ops: cdo -sub [ -yearmean a.nc ] [ -fldmean b.nc ]
+            - Left has ops: cdo -sub -yearmean a.nc b.nc
+            - Both have ops: cdo -sub -yearmean a.nc -fldmean b.nc
+            - Nested binary: cdo -sub -ifthen mask.nc data.nc clim.nc
         """
-        # Build left expression (with brackets if has operators)
+        # Build command using operator chaining (no brackets)
         left_expr = self._build_expression(self._left)
         right_expr = self._build_expression(self._right)
         return f"cdo -{self._operator} {left_expr} {right_expr}"
@@ -960,7 +962,7 @@ def new_operator(self, param: type, input_file: str | Path, *, output: str | Pat
 2. **Query methods first** - All operators implemented as CDOQuery methods
 3. **CDO class delegates** to query layer for convenience methods
 4. **F() function** for Django F-expression pattern in binary operations
-5. **Bracket notation only** for binary operations (requires CDO >= 1.9.8)
+5. **Operator chaining for binary operations** - No bracket notation, standard CDO syntax
 6. **Dataclasses for results** - SinfoResult, GriddesResult, etc.
 7. **Lazy evaluation** - Queries build commands, only execute on compute()
 
@@ -1002,7 +1004,7 @@ python -c "from python_cdo_wrapper import CDO; print(CDO)"
 9. **Test locally** before pushing: `pytest && ruff check .`
 10. **Query methods are immutable** - always return new CDOQuery
 11. **Use dataclasses** for result types, not TypedDict
-12. **Binary operations use bracket notation** - requires CDO >= 1.9.8
+12. **Binary operations use operator chaining** - no brackets, standard CDO syntax
 13. **Reference IMPLEMENTATION_TRACKER.md** for implementation status
 14. **F() creates unbound queries** - can be used with any CDO instance
 
