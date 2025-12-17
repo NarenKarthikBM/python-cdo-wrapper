@@ -1,6 +1,7 @@
 ---
 description: 'Specialized agent for CDOQuery operations, operator methods, and chaining patterns'
-tools: ['edit/createFile', 'edit/createDirectory', 'edit/editFiles', 'search/fileSearch', 'search/textSearch', 'search/listDirectory', 'search/readFile', 'search/codebase', 'changes', 'testFailure', 'githubRepo', 'todos']
+model: Claude Sonnet 4.5 (copilot)
+tools: ['edit', 'search', 'web', 'todo']
 ---
 
 # Query Agent

@@ -1,6 +1,7 @@
 ---
 description: 'Specialized agent for type definitions, dataclasses, and exception handling'
-tools: [read_file, replace_string_in_file, multi_replace_string_in_file, semantic_search, grep_search]
+model: Claude Sonnet 4.5 (copilot)
+tools: ['edit', 'search', 'web', 'todo']
 ---
 
 # Types Agent

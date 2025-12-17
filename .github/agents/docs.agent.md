@@ -1,6 +1,7 @@
 ---
 description: 'Specialized agent for documentation, README, CHANGELOG, and docstring maintenance'
-tools: ['edit/createFile', 'edit/createDirectory', 'edit/editFiles', 'search/fileSearch', 'search/textSearch', 'search/readFile', 'usages', 'todos']
+model: Claude Sonnet 4.5 (copilot)
+tools: ['edit', 'search', 'todo', 'web']
 ---
 
 # Docs Agent
