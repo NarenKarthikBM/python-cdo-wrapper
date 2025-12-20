@@ -8,12 +8,63 @@ from typing import Literal
 
 @dataclass
 class GridInfo:
-    """Information about a grid from griddes output."""
+    """
+    Information about a grid from griddes output.
+
+    Supports all CDO grid types with their specific attributes:
+
+    **Regular Grids:**
+    - **lonlat**: Regular latitude-longitude grids with uniform spacing
+      Required: gridtype, gridsize, xsize, ysize, xfirst, xinc, yfirst, yinc
+
+    - **generic**: Generic grids with minimal metadata
+      Required: gridtype, gridsize, xsize, ysize
+
+    **Gaussian Grids:**
+    - **gaussian**: Gaussian grids with regular longitude spacing
+      Required: gridtype, gridsize, xsize, ysize
+      Optional: np (truncation parameter)
+
+    - **gaussian_reduced**: Reduced Gaussian grids with variable longitude points
+      Required: gridtype, gridsize, xsize (max lon points), ysize (lat rows)
+      Optional: rowlon (list of longitude points per latitude)
+
+    **Projection Grids:**
+    - **projection**: Rotated pole and other CF Convention projections
+      Required: gridtype, gridsize, xsize, ysize
+      Projection fields: grid_mapping, grid_mapping_name,
+                        grid_north_pole_longitude, grid_north_pole_latitude
+
+    **Advanced Grids:**
+    - **curvilinear**: 2D coordinate arrays for structured but non-rectangular grids
+      Required: gridtype, gridsize, xsize, ysize
+      Coordinates usually stored in file, not in griddes output
+
+    - **unstructured**: Irregular meshes and point clouds
+      Required: gridtype, gridsize, points
+      Optional: nvertex (vertices per cell)
+
+    **Fallback:**
+    For any grid with unrecognized attributes, those are stored in raw_attributes
+    dictionary for inspection and debugging.
+
+    Example:
+        >>> parser = GriddesParser()
+        >>> result = parser.parse(cdo_griddes_output)
+        >>> grid = result.primary_grid
+        >>> if grid.is_rotated:
+        ...     print(f"Rotated pole at ({grid.grid_north_pole_longitude}, "
+        ...           f"{grid.grid_north_pole_latitude})")
+        >>> if grid.raw_attributes:
+        ...     print(f"Unknown attributes: {grid.raw_attributes}")
+    """
 
     grid_id: int
     gridtype: str
     gridsize: int
     datatype: str | None = None
+
+    # Common fields for regular grids (lonlat, gaussian, projection)
     xsize: int | None = None
     ysize: int | None = None
     xname: str | None = None
@@ -29,11 +80,28 @@ class GridInfo:
     xvals: list[float] | None = None
     yvals: list[float] | None = None
     scanningMode: float | None = None
-    # Rotated grid projection fields
+
+    # Rotated grid projection fields (CF Conventions)
     grid_mapping: str | None = None
     grid_mapping_name: str | None = None
     grid_north_pole_longitude: float | None = None
     grid_north_pole_latitude: float | None = None
+
+    # Gaussian grid specific fields
+    np: int | None = None  # Gaussian grid truncation parameter
+
+    # Reduced Gaussian grid specific fields
+    rowlon: list[int] | None = None  # Number of longitudes per latitude row
+
+    # Unstructured grid fields
+    points: int | None = None  # Number of points for unstructured grids
+    nvertex: int | None = None  # Number of vertices per cell
+
+    # Curvilinear grid fields (requires full coordinate arrays from file)
+    # Note: xvals/yvals are used for curvilinear coordinate arrays
+
+    # Fallback: Raw key-value pairs for unknown/unsupported attributes
+    raw_attributes: dict[str, str | int | float | list[int] | list[float]] | None = None
 
     @property
     def lon_range(self) -> tuple[float, float] | None:
@@ -48,6 +116,46 @@ class GridInfo:
         if self.yfirst is not None and self.yinc is not None and self.ysize is not None:
             return (self.yfirst, self.yfirst + (self.ysize - 1) * self.yinc)
         return None
+
+    @property
+    def is_regular(self) -> bool:
+        """Check if grid has regular spacing (lonlat, generic, projection)."""
+        return self.gridtype in ["lonlat", "generic", "projection"]
+
+    @property
+    def is_gaussian(self) -> bool:
+        """Check if grid is Gaussian type."""
+        return self.gridtype in ["gaussian", "gaussian_reduced"]
+
+    @property
+    def is_structured(self) -> bool:
+        """Check if grid is structured (has regular dimensions)."""
+        return self.gridtype in [
+            "lonlat",
+            "generic",
+            "gaussian",
+            "gaussian_reduced",
+            "projection",
+            "curvilinear",
+        ]
+
+    @property
+    def is_unstructured(self) -> bool:
+        """Check if grid is unstructured (irregular mesh)."""
+        return self.gridtype == "unstructured"
+
+    @property
+    def is_rotated(self) -> bool:
+        """Check if grid uses rotated pole projection."""
+        return (
+            self.gridtype == "projection"
+            and self.grid_mapping_name == "rotated_latitude_longitude"
+        )
+
+    @property
+    def has_projection(self) -> bool:
+        """Check if grid has projection information."""
+        return self.grid_mapping is not None or self.grid_mapping_name is not None
 
 
 @dataclass

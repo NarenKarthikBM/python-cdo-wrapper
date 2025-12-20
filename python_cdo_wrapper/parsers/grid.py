@@ -15,6 +15,25 @@ class GriddesParser(CDOParser[GriddesResult]):
     Parser for griddes command output.
 
     Parses CDO grid description format into structured GridInfo objects.
+
+    Supported Grid Types:
+    ---------------------
+    - **lonlat**: Regular latitude-longitude grids with uniform spacing
+    - **gaussian**: Gaussian grids with regular longitude, irregular latitude
+    - **gaussian_reduced**: Reduced Gaussian grids with variable longitude points per row
+    - **generic**: Generic grids with minimal metadata
+    - **projection**: Rotated pole and other CF Conventions projections
+    - **curvilinear**: Structured grids with 2D coordinate arrays
+    - **unstructured**: Irregular meshes and point clouds
+
+    For grid types with unrecognized attributes, the parser stores them in the
+    `raw_attributes` dictionary field for inspection and debugging.
+
+    Example:
+        >>> parser = GriddesParser()
+        >>> result = parser.parse(cdo_griddes_output)
+        >>> grid = result.primary_grid
+        >>> print(f"Grid type: {grid.gridtype}, Size: {grid.gridsize}")
     """
 
     def parse(self, output: str) -> GriddesResult:
@@ -61,8 +80,61 @@ class GriddesParser(CDOParser[GriddesResult]):
         return GriddesResult(grids=grids)
 
     def _parse_grid_section(self, grid_id: int, content: str) -> GridInfo:
-        """Parse a single grid section."""
-        grid_data: dict[str, str | int | float] = {"grid_id": grid_id}
+        """
+        Parse a single grid section.
+
+        Supports all CDO grid types:
+        - lonlat: Regular latitude-longitude grids
+        - gaussian: Gaussian grids with regular longitude spacing
+        - gaussian_reduced: Reduced Gaussian grids with variable longitude points
+        - generic: Generic grids with minimal metadata
+        - projection: Rotated pole and other projections (CF Conventions)
+        - curvilinear: 2D coordinate arrays
+        - unstructured: Irregular meshes/point clouds
+
+        For unknown formats, stores all attributes in raw_attributes dictionary.
+        """
+        grid_data: dict[
+            str,
+            str
+            | int
+            | float
+            | list[int]
+            | list[float]
+            | dict[str, str | int | float | list[int] | list[float]],
+        ] = {"grid_id": grid_id}
+        raw_attrs: dict[str, str | int | float | list[int] | list[float]] = {}
+
+        # Define known attribute keys that map to GridInfo fields
+        known_keys = {
+            "grid_id",
+            "gridtype",
+            "gridsize",
+            "datatype",
+            "xsize",
+            "ysize",
+            "xname",
+            "xlongname",
+            "xunits",
+            "yname",
+            "ylongname",
+            "yunits",
+            "xfirst",
+            "xinc",
+            "yfirst",
+            "yinc",
+            "xvals",
+            "yvals",
+            "scanningMode",
+            "grid_mapping",
+            "grid_mapping_name",
+            "grid_north_pole_longitude",
+            "grid_north_pole_latitude",
+            "np",
+            "rowlon",
+            "points",
+            "nvertex",
+        }
 
         for line in content.strip().split("\n"):
             line = line.strip()
@@ -74,22 +146,67 @@ class GriddesParser(CDOParser[GriddesResult]):
                 key = key.strip()
                 value = value.strip().strip('"')
 
-                # Convert numeric values
-                if key in ["gridsize", "xsize", "ysize"]:
-                    grid_data[key] = int(value)
-                elif key in [
-                    "xfirst",
-                    "xinc",
-                    "yfirst",
-                    "yinc",
-                    "grid_north_pole_longitude",
-                    "grid_north_pole_latitude",
-                ]:
-                    grid_data[key] = float(value)
-                else:
-                    grid_data[key] = value
+                # Parse and type-convert based on key
+                try:
+                    parsed_value = self._parse_grid_attribute(key, value)
+
+                    # Only add known keys to grid_data, unknown keys go to raw_attributes
+                    if key in known_keys:
+                        grid_data[key] = parsed_value
+                    else:
+                        # Unknown keys stored in raw_attributes for inspection
+                        raw_attrs[key] = parsed_value
+
+                except Exception:
+                    # If parsing fails, store as string in raw_attributes
+                    raw_attrs[key] = value
+
+        # Add raw_attributes if any unrecognized attributes were found
+        if raw_attrs:
+            grid_data["raw_attributes"] = raw_attrs
 
         return GridInfo(**grid_data)  # type: ignore
+
+    def _parse_grid_attribute(
+        self, key: str, value: str
+    ) -> str | int | float | list[int] | list[float]:
+        """
+        Parse a grid attribute based on its key.
+
+        Args:
+            key: Attribute key name.
+            value: String value to parse.
+
+        Returns:
+            Parsed value with appropriate type.
+        """
+        # Integer fields
+        if key in ["gridsize", "xsize", "ysize", "np", "points", "nvertex"]:
+            return int(value)
+
+        # Float fields
+        elif key in [
+            "xfirst",
+            "xinc",
+            "yfirst",
+            "yinc",
+            "scanningMode",
+            "grid_north_pole_longitude",
+            "grid_north_pole_latitude",
+        ]:
+            return float(value)
+
+        # Float list fields (space-separated)
+        elif key in ["xvals", "yvals", "levels"]:
+            return [float(v) for v in value.split() if v]
+
+        # Integer list fields (space-separated)
+        elif key == "rowlon":
+            return [int(v) for v in value.split() if v]
+
+        # String fields (already stripped of quotes)
+        else:
+            return value
 
 
 class ZaxisdesParser(CDOParser[ZaxisdesResult]):
