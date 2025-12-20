@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.1.2] - 2025-12-20
+
+### Added
+
+- **Enhanced GriddesParser Support for All CDO Grid Types**: Comprehensive grid type parsing with fallback handling
+  - **Regular grids**: `lonlat` with uniform spacing, `generic` with minimal metadata
+  - **Gaussian grids**: `gaussian` with regular longitude spacing, `gaussian_reduced` with variable longitude points per latitude row
+  - **Projection grids**: Full support for rotated pole projections (`projection` gridtype) following CF Conventions
+    - New fields: `grid_mapping`, `grid_mapping_name`, `grid_north_pole_longitude`, `grid_north_pole_latitude`
+    - Convenience property: `.is_rotated` to check for rotated pole grids
+  - **Advanced grids**: `curvilinear` (2D coordinate arrays), `unstructured` (irregular meshes/point clouds)
+  - **Fallback mechanism**: Unknown/unrecognized grid attributes automatically stored in `raw_attributes` dictionary for inspection and debugging
+  - **GridInfo enhancements**: New convenience properties
+    - `.is_regular` - Check for regular spacing (lonlat, generic, projection)
+    - `.is_gaussian` - Check for Gaussian grid types
+    - `.is_structured` - Check if grid has regular dimensions
+    - `.is_unstructured` - Check for irregular mesh
+    - `.is_rotated` - Check for rotated pole projection
+    - `.has_projection` - Check for any projection information
+  - **Comprehensive test coverage**: Tests for all grid types including edge cases with unknown attributes
+
+- **Improved GriddesParser Robustness**: Enhanced parsing logic for diverse CDO output formats
+  - Attribute type detection based on key name (integers, floats, lists)
+  - Support for list fields: `xvals`, `yvals`, `levels` (float lists), `rowlon` (integer list)
+  - Graceful handling of parsing failures with fallback to raw string storage
+  - Separate tracking of known vs unknown attributes for future compatibility
+
+### Technical Details
+
+- Added `_parse_grid_attribute()` method for type-safe attribute parsing
+- Extended `GridInfo` dataclass with new optional fields for all grid types:
+  - Gaussian: `np` (truncation parameter), `rowlon` (longitude points per latitude)
+  - Unstructured: `points`, `nvertex`
+  - Projection: `grid_mapping`, `grid_mapping_name`, `grid_north_pole_longitude`, `grid_north_pole_latitude`
+  - Fallback: `raw_attributes` dictionary
+- Enhanced documentation in `GridInfo` class with detailed descriptions of each grid type
+- Test fixtures for 7 different grid types: lonlat, gaussian, gaussian_reduced, generic, curvilinear, unstructured, projection (rotated)
+
 ## [v1.1.1]
 
 ### Fixed

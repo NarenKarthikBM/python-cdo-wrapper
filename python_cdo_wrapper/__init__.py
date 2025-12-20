@@ -90,7 +90,7 @@ if _HAS_SHAPEFILE_SUPPORT:
         create_mask_from_shapefile as create_mask_from_shapefile,
     )
 
-__version__ = "1.1.1"
+__version__ = "1.1.2"
 __author__ = "B M Naren Karthik"
 __email__ = "narenkarthikbm@gmail.com"
 
