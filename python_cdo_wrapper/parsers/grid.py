@@ -77,7 +77,14 @@ class GriddesParser(CDOParser[GriddesResult]):
                 # Convert numeric values
                 if key in ["gridsize", "xsize", "ysize"]:
                     grid_data[key] = int(value)
-                elif key in ["xfirst", "xinc", "yfirst", "yinc"]:
+                elif key in [
+                    "xfirst",
+                    "xinc",
+                    "yfirst",
+                    "yinc",
+                    "grid_north_pole_longitude",
+                    "grid_north_pole_latitude",
+                ]:
                     grid_data[key] = float(value)
                 else:
                     grid_data[key] = value

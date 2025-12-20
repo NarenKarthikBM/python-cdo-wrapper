@@ -52,6 +52,30 @@ levels    = 100000 85000 50000
 cdo    zaxisdes: Processed 1 variable [0.02s 44MB]
 """
 
+SAMPLE_GRIDDES_ROTATED = """
+# gridID 1
+#
+gridtype  = projection
+gridsize  = 32767
+xsize     = 217
+ysize     = 151
+xname     = rlon
+xlongname = "longitude in rotated pole grid"
+xunits    = "degrees"
+yname     = rlat
+ylongname = "latitude in rotated pole grid"
+yunits    = "degrees"
+xfirst    = -36.52
+xinc      = 0.44
+yfirst    = -26.4
+yinc      = 0.44
+grid_mapping = rotated_pole
+grid_mapping_name = rotated_latitude_longitude
+grid_north_pole_longitude = -123.34
+grid_north_pole_latitude  = 79.95
+cdo    griddes: Processed 1 variable [0.02s 44MB]
+"""
+
 
 class TestGriddesParser:
     """Test GriddesParser."""
@@ -110,6 +134,42 @@ class TestGriddesParser:
 
         with pytest.raises(CDOParseError):
             parser.parse("Invalid griddes output with no grids")
+
+    def test_parse_rotated_grid(self):
+        """Test parsing rotated projection grid."""
+        parser = GriddesParser()
+        result = parser.parse(SAMPLE_GRIDDES_ROTATED)
+
+        assert result.ngrids == 1
+        assert result.primary_grid is not None
+
+        grid = result.primary_grid
+        assert grid.grid_id == 1
+        assert grid.gridtype == "projection"
+        assert grid.gridsize == 32767
+        assert grid.xsize == 217
+        assert grid.ysize == 151
+        assert grid.xname == "rlon"
+        assert grid.xlongname == "longitude in rotated pole grid"
+        assert grid.xunits == "degrees"
+        assert grid.yname == "rlat"
+        assert grid.ylongname == "latitude in rotated pole grid"
+        assert grid.yunits == "degrees"
+        assert grid.xfirst == -36.52
+        assert grid.xinc == 0.44
+        assert grid.yfirst == -26.4
+        assert grid.yinc == 0.44
+
+    def test_parse_rotated_grid_projection_params(self):
+        """Test parsing rotated grid projection parameters."""
+        parser = GriddesParser()
+        result = parser.parse(SAMPLE_GRIDDES_ROTATED)
+
+        grid = result.primary_grid
+        assert grid.grid_mapping == "rotated_pole"
+        assert grid.grid_mapping_name == "rotated_latitude_longitude"
+        assert grid.grid_north_pole_longitude == -123.34
+        assert grid.grid_north_pole_latitude == 79.95
 
 
 class TestZaxisdesParser:

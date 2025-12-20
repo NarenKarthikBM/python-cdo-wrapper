@@ -29,6 +29,11 @@ class GridInfo:
     xvals: list[float] | None = None
     yvals: list[float] | None = None
     scanningMode: float | None = None
+    # Rotated grid projection fields
+    grid_mapping: str | None = None
+    grid_mapping_name: str | None = None
+    grid_north_pole_longitude: float | None = None
+    grid_north_pole_latitude: float | None = None
 
     @property
     def lon_range(self) -> tuple[float, float] | None:
